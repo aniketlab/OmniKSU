@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OmniKSU – Build Studio</title>
+<style>
+:root{--page:#121212;--bg:#222222;--card:#2A2A2A;--side:#1c1c1c;--sage:#C0C0C0;--sage-l:#363636;--lime:#FFFFFF;--olive:#E10600;--olive2:#FF2A1F;--tx:#ECECEC;--mute:#9b9b9b;--bd:#3a3a3a;--field:#1e1e1e;--con:#111111;--ok:#4caf50;--err:#ff5a4d;--warn:#e0a52a;--red:#E10600;--sil:#C0C0C0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page:#0b0b0b}}
+:root[data-theme="dark"]{--page:#0b0b0b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);font:13px/1.45 -apple-system,"SF Pro Text","Segoe UI Variable","Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.win{max-width:1280px;margin:0 auto;background:var(--bg);border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4)}
+.tb{height:38px;display:flex;align-items:center;padding:0 14px;background:linear-gradient(#343434,#2a2a2a);border-bottom:1px solid var(--bd);position:relative}
+.dots{display:flex;gap:8px}.dots i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.tb b{position:absolute;left:0;right:0;text-align:center;font-size:12.5px;font-weight:600;color:var(--mute);pointer-events:none}
+.body{display:flex;min-height:690px}
+.side{width:216px;background:linear-gradient(180deg,#232323,#1b1b1b);border-right:1px solid var(--bd);padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.brand{display:flex;gap:10px;align-items:center;padding:2px 6px 16px}
+.mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(145deg,var(--olive2),var(--olive));color:var(--lime);display:grid;place-items:center;box-shadow:0 3px 10px rgba(225,6,0,.45)}.mark svg{width:20px;height:20px;stroke-width:2}
+.brand b{display:block;font-size:15px;letter-spacing:.2px}.brand span{font-size:11px;color:var(--mute)}
+.sl{font-size:10.5px;font-weight:700;letter-spacing:.9px;color:#7a7a7a;padding:12px 8px 5px}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:#bdbdbd;position:relative;cursor:default;font-weight:500}
+.nav:hover{background:rgba(255,255,255,.06)}.nav.on{background:rgba(255,255,255,.09);color:#fff}.nav.on::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--red)}.nav.on svg{stroke:var(--sil)}
+.nav em{margin-left:auto;font-style:normal;font-size:10.5px;background:rgba(255,255,255,.1);padding:1px 7px;border-radius:9px}
+.sp{flex:1}
+.stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;font-size:11.5px;color:var(--mute)}.stat b{display:flex;gap:7px;align-items:center;color:var(--tx);font-size:12.5px;margin-bottom:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:#7fb56a;box-shadow:0 0 0 3px rgba(127,181,106,.25)}
+.main{flex:1;min-width:0;padding:22px 26px}
+header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:18px}
+h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.3px}.sub{color:var(--mute);margin-top:2px}
+.seg{display:inline-flex;background:#1a1a1a;border-radius:10px;padding:3px;gap:2px;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}
+.seg button{border:0;background:transparent;font:inherit;font-weight:500;color:#a8a8a8;padding:7px 14px;border-radius:8px;cursor:pointer;display:flex;gap:7px;align-items:center;transition:.15s}
+.seg button.on{background:linear-gradient(#DADADA,#B5B5B5);color:#1d1d1d;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.6)}.seg button.on svg{stroke:#1d1d1d}
+.seg small{opacity:.65;font-size:11px}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:620px){.kv{grid-template-columns:repeat(2,1fr)}}
+.kv div{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:11px 14px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.kv span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--mute)}.kv b{display:block;font-size:14px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px}
+@media(max-width:940px){.grid{grid-template-columns:1fr}.side{width:64px;padding:14px 8px}.side .nav span,.side .nav em,.side .sl,.side .brand div,.side .stat{display:none}.nav{justify-content:center}}
+@media(max-width:640px){.side{display:none}}
+.pn{background:var(--card);border:1px solid var(--bd);border-radius:14px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.ph{display:flex;align-items:center;gap:10px;padding:13px 16px 0;font-size:14px;font-weight:700}
+.ph i{font-style:normal;width:22px;height:22px;border-radius:7px;background:var(--sil);color:#1d1d1d;display:grid;place-items:center;font-size:11.5px;font-weight:800}
+.pb{padding:12px 16px 16px}
+label{display:block;font-size:12px;font-weight:600;color:var(--mute);margin:13px 0 6px}.pb>label:first-child{margin-top:2px}
+input[type=text],input[type=password],select{width:100%;height:36px;background:var(--field);border:1px solid #474747;border-radius:9px;padding:0 12px;font:inherit;color:var(--tx);outline:0;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23C0C0C0' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+input:focus,select:focus{border-color:var(--sil);box-shadow:0 0 0 3px rgba(192,192,192,.22)}
+.cust{max-height:0;overflow:hidden;opacity:0;transition:.3s}.cust.show{max-height:250px;opacity:1}
+.row{display:flex;gap:8px}
+.btn{height:36px;padding:0 15px;background:linear-gradient(#3b3b3b,#313131);border:1px solid #4a4a4a;border-radius:9px;font:inherit;font-weight:500;color:var(--tx);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.btn:hover{background:#444;border-color:var(--sil)}.btn:active{transform:translateY(1px)}
+.note{display:flex;gap:9px;margin-top:14px;padding:10px 12px;background:var(--sage-l);border-radius:10px;font-size:12px;color:#cfcfcf;line-height:1.4;border-left:3px solid var(--red)}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--sage-l);color:#e0e0e0;padding:6px 13px;border-radius:20px;font-size:12px;font-weight:600}
+input[type=range]{width:100%;accent-color:var(--olive)}
+.rng{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute)}.rng b{color:var(--sil)}
+.hide{display:none}
+.pipe{display:flex;padding:18px 10px 16px;overflow:auto}
+.stg{flex:1;min-width:84px;text-align:center;position:relative;font-size:12px;color:var(--mute);font-weight:500}
+.stg::before{content:"";position:absolute;top:13px;left:-50%;width:100%;height:3px;border-radius:2px;background:#3d3d3d}.stg:first-child::before{display:none}
+.stg.done::before{background:var(--sil)}.stg.act::before{background:var(--red)}
+.stg u{position:relative;z-index:1;display:grid;place-items:center;width:28px;height:28px;margin:0 auto 7px;border-radius:50%;background:var(--field);border:2px solid #4a4a4a;font:700 11.5px sans-serif;text-decoration:none}
+.stg.done u{background:var(--sil);border-color:var(--sil);color:#1d1d1d}
+.stg.act u{border-color:var(--red);color:#fff;background:var(--red);box-shadow:0 0 0 4px rgba(225,6,0,.28)}.stg.act,.stg.done{color:var(--tx);font-weight:600}
+.cons{background:var(--con);border-radius:14px;margin-bottom:16px;overflow:hidden;border:1px solid #343434;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.ch{display:flex;justify-content:space-between;align-items:center;padding:9px 10px 9px 16px;background:#1a1a1a;color:#C0C0C0;font-size:12px;font-weight:600;letter-spacing:.3px;border-bottom:1px solid #2e2e2e}
+.ch .btn{height:28px;font-size:11.5px;padding:0 11px;background:#262626;color:#cfcfcf;border-color:#3d3d3d;box-shadow:none}.ch .btn:hover{background:#333}
+#log{height:290px;overflow:auto;padding:12px 16px;font:12.5px/1.7 "SF Mono","Cascadia Mono",Menlo,Consolas,monospace;color:#d0d0d0;white-space:pre-wrap;word-break:break-word}
+.ts{color:#6a6a6a}.t-INFO{color:#C0C0C0}.t-PATCH{color:#e0cf8c}.t-BUILD{color:#8fc3d1}.t-PACK{color:#d3afd0}.t-OK{color:#8fe08a}.t-ERR{color:#ff6b5f}
+.act{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.go{height:46px;padding:0 28px;border:1px solid #8a0400;border-radius:12px;background:linear-gradient(#FF1F14,#E10600);color:#fff;font:600 14.5px inherit;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(225,6,0,.4),inset 0 1px 0 rgba(255,255,255,.28)}
+.go:hover{background:linear-gradient(#FF3326,#EE0A00)}.go:active{transform:translateY(1px)}.go:disabled{opacity:.5;cursor:not-allowed}.go svg{stroke:var(--lime);fill:var(--lime)}
+.stop{height:46px;border-radius:12px}.stop:disabled{opacity:.45;cursor:not-allowed}
+.chip{height:30px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:16px;background:var(--sage-l);color:#e0e0e0;font-size:12px;font-weight:600}
+.chip i{width:8px;height:8px;border-radius:50%;background:#7fb56a}.chip.run i{background:#e0a52a}.chip.err{background:rgba(225,6,0,.18);color:#ff7a6f}.chip.err i{background:var(--err)}
+.bw{flex:1;min-width:220px}.bar{height:10px;background:#1a1a1a;border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}.bar div{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#8d8d8d,#E0E0E0 70%,#E10600);transition:width .6s ease}
+.bm{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute);margin-top:5px}
+::placeholder{color:#777}input[type=range]{color-scheme:dark}
+</style>
+</head>
+<body>
+<div class="win">
+ <div class="tb"><div class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></div><b>OmniKSU Build Studio</b></div>
+ <div class="body">
+  <aside class="side">
+   <div class="brand"><div class="mark"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><div><b>OmniKSU</b><span>v1.0.0</span></div></div>
+   <div class="sl">WORKSPACE</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z"/></svg><span>New Build</span></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Devices</span><em>2</em></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/></svg><span>Artifacts</span></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Build History</span></div>
+   <div class="sl">TOOLS</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Logs</span></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span>Settings</span></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></svg><span>Help &amp; Docs</span></div>
+   <div class="sp"></div>
+   <div class="stat"><b><span class="dot"></span><span id="sn">GitHub Runner</span></b><span id="sd">Ubuntu 22.04 · 16GB RAM</span></div>
+  </aside>
+  <main class="main">
+   <header>
+    <div><h1>New Build</h1><div class="sub">Automated KernelSU-Next &amp; BakaSU Build System for Stock ROMs</div></div>
+    <div class="seg" id="mode">
+     <button class="on" data-m="cloud"><svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 010-8 5 5 0 019.6-1A4 4 0 0117 18z"/></svg>Cloud Build <small>GitHub Actions</small></button>
+     <button data-m="local"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Local Build <small>PC / WSL2</small></button>
+    </div>
+   </header>
+   <div class="kv"><div><span>Target</span><b id="k1">whyred · 4.4</b></div><div><span>Engine</span><b id="k2">BakaSU</b></div><div><span>Hook</span><b id="k3">Manual Hook</b></div><div><span>Runner</span><b id="k4">GitHub Actions</b></div></div>
+   <div class="grid">
+    <div>
+     <section class="pn"><div class="ph"><i>1</i>Target Device</div><div class="pb">
+      <label>Device Profile</label>
+      <select id="dev"><option value="whyred">Xiaomi Redmi Note 5 Pro (whyred – Kernel 4.4)</option><option value="enchilada">OnePlus 6 (enchilada – Kernel 4.9)</option><option value="custom">Custom Device / Custom Kernel</option></select>
+      <div class="cust" id="cust">
+       <label>Kernel Git Repo URL</label><input type="text" placeholder="https://github.com/user/kernel_repo">
+       <label>Branch Name</label><input type="text" placeholder="main">
+       <label>Defconfig Name</label><input type="text" placeholder="device_defconfig">
+      </div></div></section>
+     <section class="pn"><div class="ph"><i>2</i>Root Engine</div><div class="pb">
+      <label>Engine</label><div class="seg" id="eng"><button class="on">BakaSU <small>Recommended 4.4 / 4.9</small></button><button>KernelSU-Next</button></div>
+      <label>Hook Mode</label><div class="seg" id="hook"><button class="on">Manual Hook <small>Safest for Stock ROM</small></button><button>Kprobes</button></div>
+     </div></section>
+     <section class="pn" id="cloud"><div class="ph"><i>3</i>Cloud Runner</div><div class="pb">
+      <label>GitHub Personal Access Token</label>
+      <div class="row"><input type="password" id="tok" placeholder="ghp_••••••••••••••••••••"><button class="btn" id="eye">Show</button></div>
+      <label>Target GitHub Repository</label><input type="text" value="aniketlab/OmniKSU">
+      <div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Build runs on GitHub’s free 16GB RAM cloud runner. Zero PC lag.</div>
+     </div></section>
+     <section class="pn hide" id="local"><div class="ph"><i>3</i>Local Environment</div><div class="pb">
+      <span class="pill"><span class="dot"></span>WSL2 Detected: Ubuntu</span>
+      <label>CPU Threads</label><input type="range" id="thr" min="4" max="16" value="16">
+      <div class="rng"><span>4</span><b id="thv">16 threads (all cores)</b><span>16</span></div>
+      <label>Output Directory</label>
+      <div class="row"><input type="text" id="out" value="C:\OmniKSU\output"><button class="btn" id="brw">Browse…</button></div>
+     </div></section>
+    </div>
+    <div>
+     <section class="pn"><div class="ph">Build Pipeline</div>
+      <div class="pipe" id="pipe"><div class="stg"><u>1</u>Detect</div><div class="stg"><u>2</u>Clone</div><div class="stg"><u>3</u>Patch</div><div class="stg"><u>4</u>Compile</div><div class="stg"><u>5</u>Package</div></div></section>
+     <section class="cons"><div class="ch"><span>Console Output</span><span class="row"><button class="btn" id="clr">Clear Logs</button><button class="btn" id="cpy">Copy Logs</button></span></div><div id="log"></div></section>
+     <div class="act">
+      <button class="go" id="go"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Start OmniKSU Build</button>
+      <button class="btn stop" id="stop" disabled>Cancel</button>
+      <span class="chip" id="st"><i></i>Status: Idle</span>
+      <div class="bw"><div class="bar"><div id="pb"></div></div><div class="bm"><span id="pc">0%</span><span id="el">Elapsed 00:00</span></div></div>
+     </div>
+    </div>
+   </div>
+  </main>
+ </div>
+</div>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const logEl=$('#log');let timer=null,clock=null,plain=[],t0=0;
+function log(tag,msg){const t=new Date().toLocaleTimeString('en-GB');plain.push(`[${t}] [${tag}] ${msg}`);
+ const d=document.createElement('div');d.innerHTML=`<span class="ts">${t}</span>  <span class="t-${tag}">${tag.padEnd(5)}</span> ${msg}`;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight}
+function seg(id,cb){$$('#'+id+' button').forEach(b=>b.onclick=()=>{$$('#'+id+' button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb&&cb(b)})}
+const first=id=>$('#'+id+' .on').childNodes[0].textContent.trim();
+function sync(){const v=$('#dev').value;$('#k1').textContent=v==='custom'?'Custom kernel':v+' · '+(v==='enchilada'?'4.9':'4.4');$('#k2').textContent=first('eng');$('#k3').textContent=first('hook');
+ const c=$('#mode .on').dataset.m==='cloud';$('#k4').textContent=c?'GitHub Actions':'Local · WSL2';$('#sn').textContent=c?'GitHub Runner':'WSL2 Ubuntu';$('#sd').textContent=c?'Ubuntu 22.04 · 16GB RAM':'Local PC · '+$('#thr').value+' threads'}
+function on_mode_change(b){const c=b.dataset.m==='cloud';$('#cloud').classList.toggle('hide',!c);$('#local').classList.toggle('hide',c);sync();log('INFO','Build mode: '+(c?'Cloud (GitHub Actions)':'Local (WSL2)'))}
+function on_device_select(){$('#cust').classList.toggle('show',$('#dev').value==='custom');sync();log('INFO','Device profile: '+$('#dev').selectedOptions[0].text)}
+seg('mode',on_mode_change);seg('eng',sync);seg('hook',sync);$('#dev').onchange=on_device_select;
+$$('.nav').forEach(n=>n.onclick=()=>{$$('.nav').forEach(x=>x.classList.remove('on'));n.classList.add('on')});
+$('#eye').onclick=()=>{const t=$('#tok'),s=t.type==='password';t.type=s?'text':'password';$('#eye').textContent=s?'Hide':'Show'};
+$('#thr').oninput=e=>{const v=e.target.value;$('#thv').textContent=v+' threads'+(v==16?' (all cores)':'');sync()};
+$('#brw').onclick=()=>{$('#out').value='D:\\Builds\\OmniKSU';log('INFO','Output directory updated')};
+$('#clr').onclick=()=>{logEl.innerHTML='';plain=[]};
+$('#cpy').onclick=async()=>{try{await navigator.clipboard.writeText(plain.join('\n'));$('#cpy').textContent='Copied'}catch(e){$('#cpy').textContent='Copy failed'}setTimeout(()=>$('#cpy').textContent='Copy Logs',1400)};
+function setSt(t,c){const s=$('#st');s.innerHTML='<i></i>Status: '+t;s.className='chip '+c}
+function prog(p){$('#pb').style.width=p+'%';$('#pc').textContent=p+'%'}
+function pipe(a,done){$$('#pipe .stg').forEach((s,i)=>{s.className='stg'+(done||i<a?' done':i===a?' act':'')});$$('#pipe .stg u').forEach((u,i)=>{u.textContent=(done||i<a)?'✓':i+1})}
+function fmt(){const s=Math.floor((Date.now()-t0)/1000);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function on_build_start(){
+ const dev=$('#dev').value,k=dev==='enchilada'?'4.9':'4.4',eng=first('eng'),hook=first('hook'),name=dev==='custom'?'custom':dev;
+ const S=[[0,'INFO',`Detecting device: ${name} (Kernel ${k})`],[1,'INFO','Cloning kernel source (depth=1)'],[1,'INFO','Toolchain ready: clang 17 / aarch64-gcc'],[2,'PATCH',`Integrating ${eng} into kernel tree`],[2,'PATCH',`Applying ${hook}: fs/exec.c, fs/open.c, fs/stat.c`],[2,'PATCH','CONFIG_KSU=y set in defconfig'],[3,'BUILD',`make -j${$('#thr').value} ${name}_defconfig`],[3,'BUILD','CC arch/arm64/kernel/'],[3,'BUILD','CC drivers/'],[3,'BUILD','LD vmlinux → Image.gz-dtb'],[4,'PACK','Packaging with AnyKernel3'],[4,'OK',`OmniKSU-${name}-${eng}.zip created`]];
+ let i=0;t0=Date.now();$('#go').disabled=true;$('#stop').disabled=false;setSt('Building…','run');prog(0);log('INFO','Build started');pipe(0);
+ clock=setInterval(()=>$('#el').textContent='Elapsed '+fmt(),1000);
+ timer=setInterval(()=>{const s=S[i++];log(s[1],s[2]);pipe(s[0]);prog(Math.round(i/S.length*100));
+  if(i>=S.length){clearInterval(timer);clearInterval(clock);pipe(0,true);setSt('Success','');$('#go').disabled=false;$('#stop').disabled=true}},750)}
+function on_build_stop(){clearInterval(timer);clearInterval(clock);log('ERR','Build cancelled by user');setSt('Cancelled','err');$('#go').disabled=false;$('#stop').disabled=true}
+$('#go').onclick=on_build_start;$('#stop').onclick=on_build_stop;
+log('INFO','OmniKSU 1.0.0 initialised');log('INFO','Waiting for build command');
+</script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>OmniKSU — Build Studio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="win">
+  <!-- Window Titlebar -->
+  <div class="tb">
+    <div class="dots">
+      <i id="btn-close" style="background:#FF5F57" title="Close"></i>
+      <i id="btn-min" style="background:#FEBC2E" title="Minimize"></i>
+      <i id="btn-max" style="background:#28C840" title="Maximize"></i>
+    </div>
+    <b>OmniKSU Build Studio</b>
+    <div class="tb-actions">
+      <button class="theme-btn" id="theme-toggle" title="Toggle Theme">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-name">Dark</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- Sidebar -->
+    <aside class="side">
+      <div class="brand">
+        <div class="mark">
+          <svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+        </div>
+        <div>
+          <b>OmniKSU</b>
+          <span>v1.0.0</span>
+        </div>
+      </div>
+
+      <div class="sl">WORKSPACE</div>
+      <div class="nav on" data-nav="new-build">
+        <svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z"/></svg>
+        <span>New Build</span>
+      </div>
+      <div class="nav" data-nav="devices">
+        <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+        <span>Devices</span>
+        <em id="dev-count">2</em>
+      </div>
+      <div class="nav" data-nav="artifacts">
+        <svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
+        <span>Artifacts</span>
+      </div>
+      <div class="nav" data-nav="history">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Build History</span>
+      </div>
+
+      <div class="sl">TOOLS</div>
+      <div class="nav" data-nav="logs">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>Logs</span>
+      </div>
+      <div class="nav" data-nav="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+        <span>Settings</span>
+      </div>
+      <div class="nav" data-nav="docs">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></svg>
+        <span>Help &amp; Docs</span>
+      </div>
+
+      <div class="sp"></div>
+      <div class="stat">
+        <b><span class="dot"></span><span id="sn">GitHub Runner</span></b>
+        <span id="sd">Ubuntu 22.04 · 16GB RAM</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main">
+      <header>
+        <div>
+          <h1>New Build</h1>
+          <div class="sub">Automated KernelSU-Next &amp; BakaSU Build System for Stock ROMs</div>
+        </div>
+        <div class="seg" id="mode">
+          <button class="on" data-m="cloud">
+            <svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 010-8 5 5 0 019.6-1A4 4 0 0117 18z"/></svg>
+            Cloud Build <small>GitHub Actions</small>
+          </button>
+          <button data-m="local">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+            Local Build <small>PC / WSL2</small>
+          </button>
+        </div>
+      </header>
+
+      <!-- Stat Badges -->
+      <div class="kv">
+        <div><span>Target</span><b id="k1">whyred · 4.4</b></div>
+        <div><span>Engine</span><b id="k2">BakaSU</b></div>
+        <div><span>Hook</span><b id="k3">Manual Hook</b></div>
+        <div><span>Runner</span><b id="k4">GitHub Actions</b></div>
+      </div>
+
+      <!-- Main Config Grid -->
+      <div class="grid">
+        <!-- Configuration Column (Left) -->
+        <div>
+          <!-- Step 1: Target Device -->
+          <section class="pn">
+            <div class="ph"><i>1</i>Target Device</div>
+            <div class="pb">
+              <label>Device Profile</label>
+              <select id="dev">
+                <option value="whyred">Xiaomi Redmi Note 5 Pro (whyred — Kernel 4.4)</option>
+                <option value="enchilada">OnePlus 6 (enchilada — Kernel 4.9)</option>
+                <option value="custom">Custom Device / Custom Kernel</option>
+              </select>
+
+              <div class="cust" id="cust">
+                <label>Kernel Git Repo URL</label>
+                <input type="text" id="cust-repo" placeholder="https://github.com/user/kernel_repo">
+                <label>Branch Name</label>
+                <input type="text" id="cust-branch" placeholder="main">
+                <label>Defconfig Name</label>
+                <input type="text" id="cust-defconfig" placeholder="device_defconfig">
+              </div>
+            </div>
+          </section>
+
+          <!-- Step 2: Root Engine -->
+          <section class="pn">
+            <div class="ph"><i>2</i>Root Engine</div>
+            <div class="pb">
+              <label>Engine</label>
+              <div class="seg" id="eng">
+                <button class="on" data-val="bakasu">BakaSU <small>Recommended 4.4 / 4.9</small></button>
+                <button data-val="kernelsu-next">KernelSU-Next</button>
+              </div>
+
+              <label>Hook Mode</label>
+              <div class="seg" id="hook">
+                <button class="on" data-val="manual">Manual Hook <small>Safest for Stock ROM</small></button>
+                <button data-val="kprobes">Kprobes</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Step 3A: Cloud Runner -->
+          <section class="pn" id="cloud">
+            <div class="ph"><i>3</i>Cloud Runner</div>
+            <div class="pb">
+              <label>GitHub Personal Access Token</label>
+              <div class="row">
+                <input type="password" id="tok" placeholder="ghp_••••••••••••••••••••">
+                <button class="btn" id="eye">Show</button>
+              </div>
+              <label>Target GitHub Repository</label>
+              <input type="text" id="target-repo" value="aniketlab/OmniKSU">
+              <div class="note">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                Build runs on GitHub's free 16GB RAM cloud runner. Zero PC lag.
+              </div>
+            </div>
+          </section>
+
+          <!-- Step 3B: Local Environment -->
+          <section class="pn hide" id="local">
+            <div class="ph"><i>3</i>Local Environment</div>
+            <div class="pb">
+              <span class="pill" id="wsl-pill"><span class="dot"></span>WSL2 Detected: Ubuntu</span>
+              <label>CPU Threads</label>
+              <input type="range" id="thr" min="4" max="16" value="16">
+              <div class="rng">
+                <span>4</span>
+                <b id="thv">16 threads (all cores)</b>
+                <span>16</span>
+              </div>
+              <label>Output Directory</label>
+              <div class="row">
+                <input type="text" id="out" value="C:\OmniKSU\output">
+                <button class="btn" id="brw">Browse…</button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Build Console & Stepper Column (Right) -->
+        <div>
+          <!-- Build Pipeline Stepper -->
+          <section class="pn">
+            <div class="ph">Build Pipeline</div>
+            <div class="pipe" id="pipe">
+              <div class="stg"><u>1</u>Detect</div>
+              <div class="stg"><u>2</u>Clone</div>
+              <div class="stg"><u>3</u>Patch</div>
+              <div class="stg"><u>4</u>Compile</div>
+              <div class="stg"><u>5</u>Package</div>
+            </div>
+          </section>
+
+          <!-- Console Output Box -->
+          <section class="cons">
+            <div class="ch">
+              <span>Console Output</span>
+              <span class="row">
+                <button class="btn" id="clr">Clear Logs</button>
+                <button class="btn" id="cpy">Copy Logs</button>
+              </span>
+            </div>
+            <div id="log"></div>
+          </section>
+
+          <!-- Action & Status Bar -->
+          <div class="act">
+            <button class="go" id="go">
+              <svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>
+              Start OmniKSU Build
+            </button>
+            <button class="btn stop" id="stop" disabled>Cancel</button>
+            <span class="chip" id="st"><i></i>Status: Idle</span>
+
+            <div class="bw">
+              <div class="bar"><div id="pb"></div></div>
+              <div class="bm">
+                <span id="pc">0%</span>
+                <span id="el">Elapsed 00:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
