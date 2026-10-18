@@ -34,8 +34,8 @@ jobs:
 
       - name: Clone Xiaomi Redmi Note 5 Pro Kernel Source
         run: |
-          echo "[*] Cloning whyred-p-oss kernel tree..."
-          git clone --depth=1 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b whyred-p-oss kernel_source
+          echo "[*] Cloning whyred (tulip-p-oss) kernel tree..."
+          git clone --depth=1 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b tulip-p-oss kernel_source
 
       - name: Clone AOSP GCC 4.9 Toolchains
         run: |
@@ -67,6 +67,7 @@ jobs:
           cd kernel_source
           echo "[*] Generating defconfig..."
           make O=../out whyred-perf_defconfig
+          python3 ../omniksu.py defconfig ../out/.config
 
           echo "[*] Compiling kernel..."
           make O=../out -j$(nproc --all)

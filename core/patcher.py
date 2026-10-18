@@ -96,7 +96,7 @@ class SmartPatcher:
 
     def patch_stat_c(self) -> Tuple[bool, str]:
         """
-        Patches fs/stat.c for vfs_statx / vfs_fstatat hooking.
+        Patches fs/stat.c for vfs_statx / vfs_fstatat / newfstat / fstat64 hooking.
         """
         file_path = self.fs_dir / "stat.c"
         if not file_path.is_file():
@@ -113,16 +113,20 @@ class SmartPatcher:
         header_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
             "extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);\n"
+            "extern void ksu_handle_newfstat_ret(unsigned int *fd, struct stat __user **statbuf_ptr);\n"
+            "#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)\n"
+            "extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **statbuf_ptr);\n"
+            "#endif\n"
             "#endif\n"
         )
 
-        call_hook = (
+        stat_call_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
             "\tksu_handle_stat(&dfd, &filename, &flag);\n"
             "#endif\n"
         )
 
-        # Insert header declarations
+        # 1. Insert header declarations
         include_match = list(re.finditer(r"#include\s+<[^>]+>", content))
         if include_match:
             last_include_pos = include_match[-1].end()
@@ -130,22 +134,42 @@ class SmartPatcher:
         else:
             content = header_hook + content
 
-        # Look for vfs_fstatat or vfs_statx
-        # In 4.4 / 4.9: int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat, int flag) {
+        # 2. Hook vfs_fstatat or newfstatat
         pattern = r"(int\s+vfs_fstatat\s*\([^{]+\{\s*)"
         match = re.search(pattern, content)
         if match:
             pos = match.end()
-            content = content[:pos] + call_hook + content[pos:]
+            content = content[:pos] + stat_call_hook + content[pos:]
         else:
-            # Check SYSCALL_DEFINE4(newfstatat
             pattern_syscall = r"(SYSCALL_DEFINE4\s*\(\s*newfstatat[^{]+\{\s*)"
             s_match = re.search(pattern_syscall, content)
             if s_match:
                 pos = s_match.end()
-                content = content[:pos] + call_hook + content[pos:]
+                content = content[:pos] + stat_call_hook + content[pos:]
             else:
                 return False, "Could not locate vfs_fstatat or newfstatat in fs/stat.c"
+
+        # 3. Hook newfstat (ksu_handle_newfstat_ret)
+        newfstat_pattern = r"(SYSCALL_DEFINE2\s*\(\s*newfstat\b[^{]+\{.*?)(\n\s*return\s+error;)"
+        newfstat_replacement = (
+            r"\1"
+            "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
+            "\tksu_handle_newfstat_ret(&fd, &statbuf);\n"
+            "#endif"
+            r"\2"
+        )
+        content, n_subs = re.subn(newfstat_pattern, newfstat_replacement, content, count=1, flags=re.DOTALL)
+
+        # 4. Hook fstat64 (ksu_handle_fstat64_ret)
+        fstat64_pattern = r"(SYSCALL_DEFINE2\s*\(\s*fstat64\b[^{]+\{.*?)(\n\s*return\s+error;)"
+        fstat64_replacement = (
+            r"\1"
+            "\n#if defined(CONFIG_KSU_MANUAL_HOOK) && (defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64))\n"
+            "\tksu_handle_fstat64_ret(&fd, &statbuf);\n"
+            "#endif"
+            r"\2"
+        )
+        content, f_subs = re.subn(fstat64_pattern, fstat64_replacement, content, count=1, flags=re.DOTALL)
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -304,14 +328,42 @@ class SmartPatcher:
 
         return True, "kernel/reboot.c successfully patched."
 
+    def sanitize_makefiles(self) -> List[str]:
+        """
+        Removes -Werror and fatal warning flags from Makefiles to prevent
+        OEM compilation failures on newer toolchains or harmless warnings.
+        """
+        cleaned = []
+        target_makefiles = [
+            self.kernel_root / "Makefile",
+            self.kernel_root / "arch" / "arm64" / "Makefile",
+        ]
+        for mf in target_makefiles:
+            if not mf.is_file():
+                continue
+            with open(mf, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            if "-Werror" in content:
+                new_content = re.sub(r"-Werror\b", "-Wno-error", content)
+                with open(mf, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                cleaned.append(f"Sanitized -Werror in {mf.name}")
+
+        return cleaned
+
     def apply_all_manual_hooks(self) -> Dict[str, Tuple[bool, str]]:
         """
-        Executes all manual hook patches across the kernel tree.
+        Executes all manual hook patches across the kernel tree and sanitizes Makefiles.
         """
         results = {}
         results["fs/exec.c"] = self.patch_exec_c()
         results["fs/stat.c"] = self.patch_stat_c()
         results["fs/open.c"] = self.patch_open_c()
-        results["fs/read_write.c"] = self.patch_read_write_c()
         results["kernel/reboot.c"] = self.patch_reboot_c()
+
+        # Sanitize Makefiles to prevent fatal -Werror warnings
+        sanitized = self.sanitize_makefiles()
+        results["makefiles"] = (True, f"Sanitized: {', '.join(sanitized) if sanitized else 'Clean'}")
+
         return results

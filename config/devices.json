@@ -8,7 +8,7 @@
       "arch": "arm64",
       "kernel_version_family": "4.4",
       "repo_url": "https://github.com/MiCode/Xiaomi_Kernel_OpenSource",
-      "branch": "whyred-p-oss",
+      "branch": "tulip-p-oss",
       "defconfig": "whyred-perf_defconfig",
       "root_engine": "bakasu",
       "hook_mode": "manual",

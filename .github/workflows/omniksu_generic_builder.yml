@@ -14,7 +14,7 @@ on:
       kernel_branch:
         description: "Kernel Source Branch"
         required: true
-        default: "whyred-p-oss"
+        default: "tulip-p-oss"
       defconfig_name:
         description: "Defconfig File Name (relative to arch/arm64/configs/)"
         required: true
@@ -101,9 +101,11 @@ jobs:
           cd kernel_source
           if [ "$IS_CLANG" = "1" ]; then
             make O=../out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- "${{ github.event.inputs.defconfig_name }}"
+            python3 ../omniksu.py defconfig ../out/.config
             make O=../out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc --all)
           else
             make O=../out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- "${{ github.event.inputs.defconfig_name }}"
+            python3 ../omniksu.py defconfig ../out/.config
             make O=../out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- -j$(nproc --all)
           fi
 

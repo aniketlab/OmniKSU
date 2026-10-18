@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Tuple, Optional
@@ -80,7 +81,8 @@ class RootIntegrator:
 
     def fetch_source(self, target: str = "bakasu", depth: int = 1) -> Tuple[bool, str]:
         """
-        Clones the root engine repository into drivers/kernelsu.
+        Clones the root engine repository and populates drivers/kernelsu
+        with the driver source files (from the repo's kernel/ directory).
         """
         target = target.lower()
         if target not in self.REPOS:
@@ -90,21 +92,58 @@ class RootIntegrator:
         repo_url = repo_info["url"]
         branch = repo_info["branch"]
 
-        if self.ksu_dir.exists():
-            return True, f"Target directory {self.ksu_dir} already exists."
+        if self.ksu_dir.exists() and (self.ksu_dir / "Kconfig").is_file():
+            return True, f"Target directory {self.ksu_dir} is already populated."
+
+        staging_dir = self.kernel_root / ".ksu_staging"
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
 
         cmd = [
             "git", "clone",
             f"--depth={depth}",
             "-b", branch,
             repo_url,
-            str(self.ksu_dir)
+            str(staging_dir)
         ]
 
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            return True, f"Successfully cloned {repo_info['name']} ({branch}) into drivers/kernelsu"
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            # Root engine sources (BakaSU, KSU-Next) place driver code inside 'kernel/'
+            kernel_sub = staging_dir / "kernel"
+            if self.ksu_dir.exists():
+                shutil.rmtree(self.ksu_dir, ignore_errors=True)
+            self.ksu_dir.mkdir(parents=True, exist_ok=True)
+
+            if kernel_sub.is_dir():
+                for item in kernel_sub.iterdir():
+                    dest = self.ksu_dir / item.name
+                    if item.is_dir():
+                        shutil.copytree(item, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dest)
+            else:
+                for item in staging_dir.iterdir():
+                    if item.name == ".git":
+                        continue
+                    dest = self.ksu_dir / item.name
+                    if item.is_dir():
+                        shutil.copytree(item, dest, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dest)
+
+            # Preserve git metadata so version macros (KSU_COMMIT_SHA, KSU_TAG_NAME) work
+            git_sub = staging_dir / ".git"
+            if git_sub.is_dir():
+                shutil.copytree(git_sub, self.ksu_dir / ".git", dirs_exist_ok=True)
+
+            # Clean up staging
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            return True, f"Successfully integrated {repo_info['name']} ({branch}) into drivers/kernelsu"
         except subprocess.CalledProcessError as e:
+            if staging_dir.exists():
+                shutil.rmtree(staging_dir, ignore_errors=True)
             return False, f"Failed to clone {repo_url}: {e.stderr}"
 
     def integrate(self, target: str = "bakasu") -> Tuple[bool, str]:

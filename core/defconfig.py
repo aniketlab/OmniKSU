@@ -12,6 +12,8 @@ class DefconfigPatcher:
     MANDATORY_FLAGS = {
         "CONFIG_KSU": "y",
         "CONFIG_OVERLAY_FS": "y",
+        "CONFIG_KALLSYMS": "y",
+        "CONFIG_KALLSYMS_ALL": "y",
     }
 
     MANUAL_HOOK_FLAGS = {

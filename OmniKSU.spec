@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:/Users/sharm/Downloads/Programs/Kernel SU/OmniKSU/gui.py'],
+    ['C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:/Users/sharm/Downloads/Programs/Kernel SU/OmniKSU/ui', 'ui'), ('C:/Users/sharm/Downloads/Programs/Kernel SU/OmniKSU/config', 'config')],
+    datas=[('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/ui', 'ui'), ('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/config', 'config')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
