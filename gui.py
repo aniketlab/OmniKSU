@@ -267,10 +267,10 @@ def main():
     else:
         sw, sh = 1366, 768
 
-    win_w = min(1080, int(sw * 0.88))
-    win_h = min(640, int(sh * 0.86))
+    win_w = min(1140, int(sw * 0.90))
+    win_h = min(710, int(sh * 0.88))
     pos_x = max(0, (sw - win_w) // 2)
-    pos_y = max(10, (sh - win_h) // 2 - 20)
+    pos_y = max(10, (sh - win_h) // 2 - 15)
 
     window = webview.create_window(
         title="OmniKSU — Build Studio",
