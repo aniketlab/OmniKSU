@@ -58,13 +58,13 @@ def cmd_patch(args):
     all_success = True
     print("\n--- Patching Summary ---")
     for file_rel, (ok, msg) in results.items():
-        status = "[✓] SUCCESS" if ok else "[X] FAILED "
+        status = "[OK] SUCCESS" if ok else "[X] FAILED "
         print(f"{status} | {file_rel:18} | {msg}")
         if not ok:
             all_success = False
 
     if all_success:
-        print("\n[✓] All manual hooks cleanly injected without git conflicts!")
+        print("\n[OK] All manual hooks cleanly injected without git conflicts!")
     else:
         print("\n[!] Warning: One or more hooks encountered an error.")
         sys.exit(1)
@@ -78,7 +78,7 @@ def cmd_defconfig(args):
         print(f"[!] Error: {changes[0]}")
         sys.exit(1)
 
-    print(f"[✓] Defconfig successfully updated at {defconfig_path.name}:")
+    print(f"[OK] Defconfig successfully updated at {defconfig_path.name}:")
     for change in changes:
         print(f"    - {change}")
 
@@ -89,7 +89,7 @@ def cmd_integrate(args):
     print(f"[*] Integrating {args.engine.upper()} into {kernel_path}...")
     ok, msg = integrator.integrate(target=args.engine)
     if ok:
-        print(f"[✓] {msg}")
+        print(f"[OK] {msg}")
     else:
         print(f"[!] Failed: {msg}")
         sys.exit(1)
@@ -132,7 +132,7 @@ def cmd_package(args):
     out_zip = Path(args.out)
     ok, msg = packager.build_zip(kernel_img, out_zip)
     if ok:
-        print(f"[✓] {msg}")
+        print(f"[OK] {msg}")
     else:
         print(f"[!] {msg}")
         sys.exit(1)

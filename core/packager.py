@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import zipfile
@@ -17,10 +18,23 @@ class AnyKernelPackager:
         self.workspace_dir = Path(workspace_dir).resolve()
         self.ak3_dir = self.workspace_dir / "AnyKernel3"
 
+    @staticmethod
+    def _safe_rmtree(path: Path) -> None:
+        if not path.exists():
+            return
+        import stat
+        def _on_error(func, p, excinfo):
+            try:
+                os.chmod(p, stat.S_IWRITE)
+                func(p)
+            except Exception:
+                pass
+        shutil.rmtree(path, onerror=_on_error)
+
     def setup_anykernel_template(self, depth: int = 1) -> Tuple[bool, str]:
         """Clones or resets the clean AnyKernel3 template."""
         if self.ak3_dir.exists():
-            shutil.rmtree(self.ak3_dir)
+            self._safe_rmtree(self.ak3_dir)
 
         cmd = ["git", "clone", f"--depth={depth}", self.ANYKERNEL3_REPO, str(self.ak3_dir)]
         try:
@@ -28,7 +42,7 @@ class AnyKernelPackager:
             # Remove git folder so it is clean
             git_folder = self.ak3_dir / ".git"
             if git_folder.exists():
-                shutil.rmtree(git_folder)
+                self._safe_rmtree(git_folder)
             return True, "AnyKernel3 template ready."
         except subprocess.CalledProcessError as e:
             return False, f"Failed to clone AnyKernel3: {e.stderr}"
@@ -36,11 +50,11 @@ class AnyKernelPackager:
     def configure_anykernel(
         self,
         device_names: List[str],
-        block_path: str = "/dev/block/bootdevice/by-name/boot",
+        block_path: str = "boot",
         is_slot_device: bool = False
     ) -> Tuple[bool, str]:
         """
-        Customizes anykernel.sh with device-specific metadata.
+        Customizes anykernel.sh with device-specific metadata and universal boot partition settings.
         """
         ak3_sh = self.ak3_dir / "anykernel.sh"
         if not ak3_sh.is_file():
@@ -49,18 +63,29 @@ class AnyKernelPackager:
         with open(ak3_sh, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
+        # Set kernel string
+        content = re.sub(r"kernel\.string=[^\n]+", "kernel.string=OmniKSU BakaSU Kernel", content)
+
         # Set device names
         for i, dev in enumerate(device_names[:5], start=1):
             key = f"device.name{i}"
-            content = content.replace(f"{key}=", f"{key}={dev}\n#")
+            content = re.sub(rf"{key}=[^\n]*", f"{key}={dev};", content)
 
-        # Set is_slot_device
+        # Clear remaining unused sample device names (maguro, toro, etc.)
+        for j in range(len(device_names) + 1, 6):
+            key = f"device.name{j}"
+            content = re.sub(rf"{key}=[^\n]*", f"{key}=;", content)
+
+        # Set is_slot_device (case-insensitive)
         slot_val = "1" if is_slot_device else "0"
-        content = content.replace("is_slot_device=0;", f"is_slot_device={slot_val};")
-        content = content.replace("is_slot_device=auto;", f"is_slot_device={slot_val};")
+        content = re.sub(r"(?i)is_slot_device=[^;]+;", f"IS_SLOT_DEVICE={slot_val};", content)
 
-        # Set block path
-        content = content.replace("block=/dev/block/bootdevice/by-name/boot;", f"block={block_path};")
+        # Set BLOCK partition (case-insensitive, default 'boot' auto-detects on all Android devices)
+        content = re.sub(r"(?i)block=[^;]+;", f"BLOCK={block_path};", content)
+
+        # Remove sample Galaxy Nexus (tuna) specific ramdisk/fstab scripts between dump_boot and write_boot
+        tuna_pattern = r"(dump_boot;\s*#?[^\n]*\n)(.*?)(\n\s*write_boot;)"
+        content = re.sub(tuna_pattern, r"\1\nwrite_boot;", content, flags=re.DOTALL)
 
         with open(ak3_sh, "w", encoding="utf-8") as f:
             f.write(content)
