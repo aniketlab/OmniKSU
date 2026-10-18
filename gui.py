@@ -268,7 +268,10 @@ def main():
         background_color="#EEF0E4"
     )
     api.set_window(window)
-    webview.start(debug=False)
+    # debug=True enables Right-Click -> Inspect Element (F12 Edge Chromium DevTools)
+    # and allows F5 / Ctrl+R instant reloading of HTML/CSS/JS without recompiling!
+    is_debug = "--debug" in sys.argv or not getattr(sys, 'frozen', False)
+    webview.start(debug=is_debug)
 
 if __name__ == "__main__":
     main()
