@@ -1,0 +1,129 @@
+name: "OmniKSU: Generic Universal Kernel Builder"
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_codename:
+        description: "Device Codename (e.g., whyred, enchilada)"
+        required: true
+        default: "whyred"
+      kernel_repo:
+        description: "Kernel Source Git URL"
+        required: true
+        default: "https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git"
+      kernel_branch:
+        description: "Kernel Source Branch"
+        required: true
+        default: "whyred-p-oss"
+      defconfig_name:
+        description: "Defconfig File Name (relative to arch/arm64/configs/)"
+        required: true
+        default: "whyred-perf_defconfig"
+      root_engine:
+        description: "Root Engine"
+        required: true
+        default: "bakasu"
+        type: choice
+        options:
+          - bakasu
+          - kernelsu-next
+      toolchain_choice:
+        description: "Toolchain Preset"
+        required: true
+        default: "gcc-4.9"
+        type: choice
+        options:
+          - gcc-4.9
+          - proton-clang
+
+jobs:
+  build_universal:
+    name: OmniKSU Universal Pipeline (${{ github.event.inputs.device_codename }})
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout OmniKSU
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex git \
+            libncurses5-dev libssl-dev libelf-dev zip rsync
+
+      - name: Clone Target Kernel Source
+        run: |
+          echo "[*] Cloning kernel from ${{ github.event.inputs.kernel_repo }} (${{ github.event.inputs.kernel_branch }})..."
+          git clone --depth=1 "${{ github.event.inputs.kernel_repo }}" -b "${{ github.event.inputs.kernel_branch }}" kernel_source
+
+      - name: Setup Toolchain
+        run: |
+          mkdir -p toolchain
+          if [ "${{ github.event.inputs.toolchain_choice }}" = "gcc-4.9" ]; then
+            git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git -b pie-release toolchain/gcc64
+            git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git -b pie-release toolchain/gcc32
+            echo "TOOLCHAIN_PATH=$(pwd)/toolchain/gcc64/bin:$(pwd)/toolchain/gcc32/bin" >> $GITHUB_ENV
+            echo "IS_CLANG=0" >> $GITHUB_ENV
+          else
+            git clone --depth=1 https://github.com/kdrag0n/proton-clang.git toolchain/clang
+            echo "TOOLCHAIN_PATH=$(pwd)/toolchain/clang/bin" >> $GITHUB_ENV
+            echo "IS_CLANG=1" >> $GITHUB_ENV
+          fi
+
+      - name: OmniKSU: Detect & Analyze
+        run: |
+          python3 omniksu.py detect kernel_source
+
+      - name: OmniKSU: Integrate Root Engine
+        run: |
+          python3 omniksu.py integrate kernel_source --engine ${{ github.event.inputs.root_engine }}
+
+      - name: OmniKSU: Apply Smart Manual Hooks
+        run: |
+          python3 omniksu.py patch kernel_source
+
+      - name: OmniKSU: Patch Target Defconfig
+        run: |
+          python3 omniksu.py defconfig "kernel_source/arch/arm64/configs/${{ github.event.inputs.defconfig_name }}"
+
+      - name: Compile Kernel
+        run: |
+          mkdir -p out
+          export PATH="${TOOLCHAIN_PATH}:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          cd kernel_source
+          if [ "$IS_CLANG" = "1" ]; then
+            make O=../out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- "${{ github.event.inputs.defconfig_name }}"
+            make O=../out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc --all)
+          else
+            make O=../out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- "${{ github.event.inputs.defconfig_name }}"
+            make O=../out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- -j$(nproc --all)
+          fi
+
+      - name: Locate Kernel Image & Package AnyKernel3
+        run: |
+          IMG_PATH=""
+          if [ -f "out/arch/arm64/boot/Image.gz-dtb" ]; then
+            IMG_PATH="out/arch/arm64/boot/Image.gz-dtb"
+          elif [ -f "out/arch/arm64/boot/Image.gz" ]; then
+            IMG_PATH="out/arch/arm64/boot/Image.gz"
+          elif [ -f "out/arch/arm64/boot/Image" ]; then
+            IMG_PATH="out/arch/arm64/boot/Image"
+          fi
+
+          echo "Found kernel image at: $IMG_PATH"
+          python3 omniksu.py package "$IMG_PATH" --device "${{ github.event.inputs.device_codename }}" --out "OmniKSU-${{ github.event.inputs.device_codename }}-Flashable.zip"
+
+      - name: Upload Flashable Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniKSU-${{ github.event.inputs.device_codename }}-Flashable
+          path: OmniKSU-${{ github.event.inputs.device_codename }}-Flashable.zip
+          retention-days: 14

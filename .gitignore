@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C / Kernel build artifacts
+*.o
+*.ko
+*.dtb
+*.dtbo
+*.img
+*.zip
+*.tar.*
+out/
+build/
+dist/
+
+# Cloned dependencies and workspaces
+toolchain/
+kernel_source/
+AnyKernel3/
+KernelSU/
+BakaSU/
+
+# Logs and scratch
+*.log
+*.bak
+.DS_Store
+Thumbs.db
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Virtual environments
+.env
+.venv
+env/
+venv/

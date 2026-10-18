@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "devices": {
+    "whyred": {
+      "name": "Redmi Note 5 Pro / AI",
+      "brand": "Xiaomi",
+      "platform": "sdm636",
+      "arch": "arm64",
+      "kernel_version_family": "4.4",
+      "repo_url": "https://github.com/MiCode/Xiaomi_Kernel_OpenSource",
+      "branch": "whyred-p-oss",
+      "defconfig": "whyred-perf_defconfig",
+      "root_engine": "bakasu",
+      "hook_mode": "manual",
+      "preferred_toolchain": "gcc-4.9",
+      "image_target": "arch/arm64/boot/Image.gz-dtb",
+      "anykernel_device_names": ["whyred"],
+      "tested_stock_os": "MIUI 12 (Android 9.0 Pie)"
+    },
+    "enchilada": {
+      "name": "OnePlus 6",
+      "brand": "OnePlus",
+      "platform": "sdm845",
+      "arch": "arm64",
+      "kernel_version_family": "4.9",
+      "repo_url": "https://github.com/OnePlusOSS/android_kernel_oneplus_sdm845",
+      "branch": "oneplus/SDM845_R_11.0",
+      "defconfig": "sdm845-perf_defconfig",
+      "root_engine": "bakasu",
+      "hook_mode": "manual",
+      "preferred_toolchain": "clang-11",
+      "image_target": "arch/arm64/boot/Image.gz-dtb",
+      "anykernel_device_names": ["enchilada", "OnePlus6"],
+      "tested_stock_os": "OxygenOS 11.1.2.2 (Android 11)"
+    }
+  }
+}

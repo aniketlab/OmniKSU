@@ -1,0 +1,83 @@
+name: "OmniKSU: Build Redmi Note 5 Pro (Whyred)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      root_engine:
+        description: "Root Engine to Integrate"
+        required: true
+        default: "bakasu"
+        type: choice
+        options:
+          - bakasu
+          - kernelsu-next
+
+jobs:
+  build:
+    name: Build Whyred Kernel with OmniKSU
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout OmniKSU
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Kernel Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex git \
+            libncurses5-dev libssl-dev libelf-dev zip rsync
+
+      - name: Clone Xiaomi Redmi Note 5 Pro Kernel Source
+        run: |
+          echo "[*] Cloning whyred-p-oss kernel tree..."
+          git clone --depth=1 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b whyred-p-oss kernel_source
+
+      - name: Clone AOSP GCC 4.9 Toolchains
+        run: |
+          echo "[*] Cloning AOSP 64-bit and 32-bit GCC 4.9..."
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git -b pie-release toolchain/gcc64
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git -b pie-release toolchain/gcc32
+
+      - name: OmniKSU: Integrate Root Engine
+        run: |
+          python3 omniksu.py integrate kernel_source --engine ${{ github.event.inputs.root_engine }}
+
+      - name: OmniKSU: Apply Smart Manual Hooks
+        run: |
+          python3 omniksu.py patch kernel_source
+
+      - name: OmniKSU: Patch Target Defconfig
+        run: |
+          python3 omniksu.py defconfig kernel_source/arch/arm64/configs/whyred-perf_defconfig
+
+      - name: Compile Whyred Kernel
+        run: |
+          mkdir -p out
+          export PATH="$(pwd)/toolchain/gcc64/bin:$(pwd)/toolchain/gcc32/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+
+          cd kernel_source
+          echo "[*] Generating defconfig..."
+          make O=../out whyred-perf_defconfig
+
+          echo "[*] Compiling kernel..."
+          make O=../out -j$(nproc --all)
+
+      - name: OmniKSU: Package into AnyKernel3 Zip
+        run: |
+          python3 omniksu.py package out/arch/arm64/boot/Image.gz-dtb --device whyred --out OmniKSU-Whyred-BakaSU-Flashable.zip
+
+      - name: Upload Flashable Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniKSU-Whyred-BakaSU-Flashable
+          path: OmniKSU-Whyred-BakaSU-Flashable.zip
+          retention-days: 14
