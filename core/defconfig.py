@@ -21,7 +21,8 @@ class DefconfigPatcher:
     }
 
     SAFETY_FLAGS = {
-        "CONFIG_MODULE_SIG_FORCE": "n",  # Prevents stock WiFi/Audio module signature panics
+        "CONFIG_MODULE_SIG_FORCE": "n",   # Prevents stock WiFi/Audio module signature panics
+        "CONFIG_MODULE_FORCE_LOAD": "y",  # Allows loading stock OEM modules without vermagic rejection
     }
 
     def __init__(self, defconfig_path: Path):

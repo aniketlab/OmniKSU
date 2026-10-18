@@ -53,12 +53,19 @@ class SmartPatcher:
         header_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
             "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags);\n"
+            "extern int ksu_handle_post_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags, int *retval);\n"
             "#endif\n"
         )
 
         call_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
             "\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n"
+            "#endif\n"
+        )
+
+        post_call_hook = (
+            "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
+            "\tksu_handle_post_execveat(&fd, &filename, &argv, &envp, &flags, &retval);\n"
             "#endif\n"
         )
 
@@ -70,7 +77,7 @@ class SmartPatcher:
         else:
             content = header_hook + content
 
-        # Insert hook call inside do_execveat_common after variable declarations (ISO C90 compliant)
+        # Insert pre-hook call inside do_execveat_common after variable declarations (ISO C90 compliant)
         pattern = r"(static\s+int\s+do_execveat_common\s*\([^{]+\{.*?\n\s*int\s+retval;\s*)"
         match = re.search(pattern, content, re.DOTALL)
         if match:
@@ -84,6 +91,21 @@ class SmartPatcher:
                 content = content[:pos] + call_hook + content[pos:]
             else:
                 return False, "Could not locate do_execveat_common in fs/exec.c"
+
+        # Insert post-hook call before return retval in do_execveat_common
+        # Pattern 1: error/cleanup exit path (out_ret: putname(filename);)
+        out_pattern = r"(out_ret:\s*putname\s*\(\s*filename\s*\)\s*;\s*)"
+        match_out = re.search(out_pattern, content)
+        if match_out:
+            pos_out = match_out.end()
+            content = content[:pos_out] + post_call_hook + content[pos_out:]
+
+        # Pattern 2: success exit path (put_files_struct(displaced);)
+        success_pattern = r"(\bput_files_struct\s*\(\s*displaced\s*\)\s*;\s*)"
+        match_succ = re.search(success_pattern, content)
+        if match_succ:
+            pos_succ = match_succ.end()
+            content = content[:pos_succ] + post_call_hook + content[pos_succ:]
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)

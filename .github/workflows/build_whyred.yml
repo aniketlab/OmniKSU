@@ -68,6 +68,7 @@ jobs:
           export CROSS_COMPILE_ARM32=arm-linux-androideabi-
 
           cd kernel_source
+          touch .scmversion
           echo "[*] Generating defconfig..."
           make O=../out whyred-perf_defconfig
           python3 ../omniksu.py defconfig ../out/.config
