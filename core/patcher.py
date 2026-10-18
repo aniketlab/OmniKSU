@@ -366,10 +366,18 @@ class SmartPatcher:
                 content = f.read()
 
             if "-Werror" in content:
-                new_content = re.sub(r"-Werror\b", "-Wno-error", content)
-                with open(mf, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-                cleaned.append(f"Sanitized -Werror in {mf.name}")
+                # Replace standalone -Werror (e.g. -Werror followed by space, newline, or quotes)
+                new_content = re.sub(r"-Werror(?=[\s\n\"\']|$)", "-Wno-error", content)
+                # Convert any -Werror-implicit-function-declaration to valid GCC flag -Wno-error=implicit-function-declaration
+                new_content = re.sub(
+                    r"-W(?:no-)?error-implicit-function-declaration",
+                    "-Wno-error=implicit-function-declaration",
+                    new_content
+                )
+                if new_content != content:
+                    with open(mf, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    cleaned.append(f"Sanitized -Werror in {mf.name}")
 
         root_makefile = self.kernel_root / "Makefile"
         if root_makefile.is_file():
