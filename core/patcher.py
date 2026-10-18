@@ -328,10 +328,31 @@ class SmartPatcher:
 
         return True, "kernel/reboot.c successfully patched."
 
+    def fix_dtc_yylloc(self) -> List[str]:
+        """
+        Fixes multiple definition of 'yylloc' on GCC 10+ host compilers.
+        """
+        fixed = []
+        target_files = [
+            self.kernel_root / "scripts" / "dtc" / "dtc-lexer.lex.c_shipped",
+            self.kernel_root / "scripts" / "dtc" / "dtc-lexer.l",
+        ]
+        for tf in target_files:
+            if not tf.is_file():
+                continue
+            with open(tf, "r", encoding="utf-8", errors="ignore") as f:
+                c = f.read()
+            if "YYLTYPE yylloc;" in c and "extern YYLTYPE yylloc;" not in c:
+                c = c.replace("YYLTYPE yylloc;", "extern YYLTYPE yylloc;")
+                with open(tf, "w", encoding="utf-8") as f:
+                    f.write(c)
+                fixed.append(tf.name)
+        return fixed
+
     def sanitize_makefiles(self) -> List[str]:
         """
-        Removes -Werror and fatal warning flags from Makefiles to prevent
-        OEM compilation failures on newer toolchains or harmless warnings.
+        Removes -Werror and adds -fcommon for host compilers to prevent
+        OEM compilation failures on modern Linux build systems.
         """
         cleaned = []
         target_makefiles = [
@@ -350,6 +371,16 @@ class SmartPatcher:
                     f.write(new_content)
                 cleaned.append(f"Sanitized -Werror in {mf.name}")
 
+        root_makefile = self.kernel_root / "Makefile"
+        if root_makefile.is_file():
+            with open(root_makefile, "r", encoding="utf-8", errors="ignore") as f:
+                rm_content = f.read()
+            if "HOSTCFLAGS += -fcommon" not in rm_content:
+                rm_content += "\n# Added by OmniKSU for GCC 10+ host compatibility\nHOSTCFLAGS += -fcommon\nHOSTCXXFLAGS += -fcommon\n"
+                with open(root_makefile, "w", encoding="utf-8") as f:
+                    f.write(rm_content)
+                cleaned.append("Added HOSTCFLAGS += -fcommon to root Makefile")
+
         return cleaned
 
     def apply_all_manual_hooks(self) -> Dict[str, Tuple[bool, str]]:
@@ -362,7 +393,12 @@ class SmartPatcher:
         results["fs/open.c"] = self.patch_open_c()
         results["kernel/reboot.c"] = self.patch_reboot_c()
 
-        # Sanitize Makefiles to prevent fatal -Werror warnings
+        # Fix GCC 10+ host dtc yylloc issue
+        dtc_fixed = self.fix_dtc_yylloc()
+        if dtc_fixed:
+            results["dtc"] = (True, f"Fixed yylloc in {', '.join(dtc_fixed)}")
+
+        # Sanitize Makefiles to prevent fatal -Werror warnings and host compiler errors
         sanitized = self.sanitize_makefiles()
         results["makefiles"] = (True, f"Sanitized: {', '.join(sanitized) if sanitized else 'Clean'}")
 

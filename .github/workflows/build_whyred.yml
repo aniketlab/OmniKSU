@@ -30,7 +30,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ccache curl flex git \
-            libncurses5-dev libssl-dev libelf-dev zip rsync
+            libncurses5-dev libssl-dev libelf-dev zip rsync python2 || true
+          if ! command -v python2 &>/dev/null; then
+            sudo ln -sf /usr/bin/python3 /usr/bin/python2
+          fi
 
       - name: Clone Xiaomi Redmi Note 5 Pro Kernel Source
         run: |
@@ -70,7 +73,7 @@ jobs:
           python3 ../omniksu.py defconfig ../out/.config
 
           echo "[*] Compiling kernel..."
-          make O=../out -j$(nproc --all)
+          make O=../out HOSTCFLAGS="-fcommon" HOSTCXXFLAGS="-fcommon" -j$(nproc --all)
 
       - name: "OmniKSU: Package into AnyKernel3 Zip"
         run: |

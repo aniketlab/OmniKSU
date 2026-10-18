@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -146,9 +147,38 @@ class RootIntegrator:
                 shutil.rmtree(staging_dir, ignore_errors=True)
             return False, f"Failed to clone {repo_url}: {e.stderr}"
 
+    def patch_kbuild_safety(self) -> None:
+        """
+        Bypasses strict submodule/path checks in BakaSU Kbuild so that
+        in-tree compilation succeeds without requiring git submodules.
+        """
+        kbuild_file = self.ksu_dir / "Kbuild"
+        if not kbuild_file.is_file():
+            return
+
+        with open(kbuild_file, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        # Force LOCAL_GIT_EXISTS := 1
+        content = re.sub(
+            r"LOCAL_GIT_EXISTS\s*:=\s*\$\(shell[^\)]+\)",
+            "LOCAL_GIT_EXISTS := 1",
+            content
+        )
+
+        # Fallback for rev-list count if git fails
+        content = re.sub(
+            r"KSU_LOCAL_VERSION\s*:=\s*\$\(shell\s+cd\s+\$\(KSU_SRC\);\s+\$\(GIT_BIN\)\s+rev-list\s+--count\s+HEAD\)",
+            "KSU_LOCAL_VERSION := $(shell cd $(KSU_SRC); $(GIT_BIN) rev-list --count HEAD 2>/dev/null || echo 100)",
+            content
+        )
+
+        with open(kbuild_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
     def integrate(self, target: str = "bakasu") -> Tuple[bool, str]:
         """
-        Full integration flow: clones repo and wires Makefiles.
+        Full integration flow: clones repo, wires Makefiles, and patches Kbuild.
         """
         fetch_ok, fetch_msg = self.fetch_source(target)
         if not fetch_ok:
@@ -157,5 +187,7 @@ class RootIntegrator:
         wire_ok, wire_msg = self.wire_drivers()
         if not wire_ok:
             return False, wire_msg
+
+        self.patch_kbuild_safety()
 
         return True, f"Integration of {target} completed successfully."
