@@ -258,16 +258,39 @@ def main():
         sys.exit(1)
 
     api = OmniKSUApi()
+
+    # Calculate optimal standard resolution & centered screen coordinates
+    screens = webview.screens
+    if screens:
+        sw = screens[0].width
+        sh = screens[0].height
+    else:
+        sw, sh = 1366, 768
+
+    win_w = min(1080, int(sw * 0.88))
+    win_h = min(640, int(sh * 0.86))
+    pos_x = max(0, (sw - win_w) // 2)
+    pos_y = max(10, (sh - win_h) // 2 - 20)
+
     window = webview.create_window(
         title="OmniKSU — Build Studio",
         url=str(HTML_FILE),
-        width=1280,
-        height=820,
-        min_size=(1020, 680),
+        width=win_w,
+        height=win_h,
+        x=pos_x,
+        y=pos_y,
+        min_size=(940, 560),
         js_api=api,
-        background_color="#EEF0E4"
+        hidden=True,
+        background_color="#F4F6ED"
     )
     api.set_window(window)
+
+    def on_loaded():
+        window.show()
+
+    window.events.loaded += on_loaded
+
     # debug=True enables Right-Click -> Inspect Element (F12 Edge Chromium DevTools)
     # and allows F5 / Ctrl+R instant reloading of HTML/CSS/JS without recompiling!
     is_debug = "--debug" in sys.argv or not getattr(sys, 'frozen', False)
