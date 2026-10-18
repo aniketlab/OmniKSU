@@ -39,7 +39,7 @@ def build():
     if res.returncode == 0:
         exe_path = BASE_DIR / "dist" / "OmniKSU.exe"
         print("========================================")
-        print(f"[✓] OmniKSU.exe successfully created at:")
+        print(f"[OK] OmniKSU.exe successfully created at:")
         print(f"    {exe_path}")
         print("========================================")
     else:
