@@ -87,7 +87,7 @@ class AnyKernelPackager:
         tuna_pattern = r"(dump_boot;\s*#?[^\n]*\n)(.*?)(\n\s*write_boot;)"
         content = re.sub(tuna_pattern, r"\1\nwrite_boot;", content, flags=re.DOTALL)
 
-        with open(ak3_sh, "w", encoding="utf-8") as f:
+        with open(ak3_sh, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
 
         return True, "anykernel.sh configured successfully."
@@ -95,7 +95,12 @@ class AnyKernelPackager:
     def build_zip(self, kernel_image_path: Path, output_zip_path: Path) -> Tuple[bool, str]:
         """
         Copies the kernel image into AnyKernel3 and compresses everything into a flashable ZIP.
+        Explicitly enforces UNIX POSIX permissions (0755 for executables/scripts, 0644 for regular files)
+        and converts Windows CRLF line endings to UNIX LF so Android recoveries (TWRP/OrangeFox)
+        do not fail with ERROR: 255 (EACCES / ENOENT).
         """
+        import time
+
         kernel_image_path = Path(kernel_image_path).resolve()
         output_zip_path = Path(output_zip_path).resolve()
 
@@ -112,10 +117,49 @@ class AnyKernelPackager:
 
         # Create zip archive
         with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, _, files in os.walk(self.ak3_dir):
+            for root, dirs, files in os.walk(self.ak3_dir):
+                # Write directory entries
+                for d in dirs:
+                    dir_full = Path(root) / d
+                    rel_dir = dir_full.relative_to(self.ak3_dir)
+                    dinfo = zipfile.ZipInfo(filename=rel_dir.as_posix() + "/")
+                    dinfo.create_system = 3  # UNIX
+                    dinfo.external_attr = 0o40755 << 16  # drwxr-xr-x
+                    zipf.writestr(dinfo, b"")
+
                 for file in files:
                     file_full = Path(root) / file
                     rel_path = file_full.relative_to(self.ak3_dir)
-                    zipf.write(file_full, arcname=str(rel_path))
+                    posix_name = rel_path.as_posix()
+
+                    zinfo = zipfile.ZipInfo(filename=posix_name)
+                    zinfo.create_system = 3  # UNIX origin so recoveries honor permissions
+                    zinfo.compress_type = zipfile.ZIP_DEFLATED
+
+                    try:
+                        zinfo.date_time = time.localtime(file_full.stat().st_mtime)[:6]
+                    except Exception:
+                        zinfo.date_time = (2026, 1, 1, 0, 0, 0)
+
+                    data = file_full.read_bytes()
+
+                    # Executable determination
+                    is_exec = (
+                        posix_name.startswith("tools/") or
+                        posix_name.endswith(".sh") or
+                        "update-binary" in posix_name
+                    )
+
+                    # Fix Windows CRLF line endings for shell scripts and text files (skip ELF binaries)
+                    if not data.startswith(b"\x7fELF"):
+                        if is_exec or posix_name.endswith((".txt", ".md", ".json", ".prop")) or "updater-script" in posix_name:
+                            data = data.replace(b"\r\n", b"\n")
+
+                    if is_exec:
+                        zinfo.external_attr = 0o100755 << 16  # -rwxr-xr-x
+                    else:
+                        zinfo.external_attr = 0o100644 << 16  # -rw-r--r--
+
+                    zipf.writestr(zinfo, data)
 
         return True, f"Flashable zip generated: {output_zip_path}"
