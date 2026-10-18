@@ -51,10 +51,13 @@ class AnyKernelPackager:
         self,
         device_names: List[str],
         block_path: str = "boot",
-        is_slot_device: bool = False
+        is_slot_device: bool = False,
+        enable_device_check: bool = False
     ) -> Tuple[bool, str]:
         """
         Customizes anykernel.sh with device-specific metadata and universal boot partition settings.
+        Disables strict device checks by default (do.devicecheck=0) so flashable zips work
+        universally across all regional variants, custom ROMs, and recovery prop variations.
         """
         ak3_sh = self.ak3_dir / "anykernel.sh"
         if not ak3_sh.is_file():
@@ -66,15 +69,16 @@ class AnyKernelPackager:
         # Set kernel string
         content = re.sub(r"kernel\.string=[^\n]+", "kernel.string=OmniKSU BakaSU Kernel", content)
 
-        # Set device names
-        for i, dev in enumerate(device_names[:5], start=1):
-            key = f"device.name{i}"
-            content = re.sub(rf"{key}=[^\n]*", f"{key}={dev};", content)
+        # Disable strict devicecheck (0 = universal, skips recovery property abort)
+        check_val = "1" if enable_device_check else "0"
+        content = re.sub(r"do\.devicecheck=[0-1]", f"do.devicecheck={check_val}", content)
 
-        # Clear remaining unused sample device names (maguro, toro, etc.)
-        for j in range(len(device_names) + 1, 6):
-            key = f"device.name{j}"
-            content = re.sub(rf"{key}=[^\n]*", f"{key}=;", content)
+        # Set clean device names without semicolons (AnyKernel3 properties block is key=value)
+        clean_names = [d.strip(";").strip() for d in device_names if d.strip(";").strip()]
+        for i in range(1, 6):
+            key = f"device.name{i}"
+            val = clean_names[i - 1] if i <= len(clean_names) else ""
+            content = re.sub(rf"{key}=[^\n]*", f"{key}={val}", content)
 
         # Set is_slot_device (case-insensitive)
         slot_val = "1" if is_slot_device else "0"
