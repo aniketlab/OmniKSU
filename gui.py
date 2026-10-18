@@ -24,9 +24,14 @@ from core.integrator import RootIntegrator
 from core.toolchain import ToolchainManager
 from core.packager import AnyKernelPackager
 
-UI_DIR = Path(__file__).parent / "ui"
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).parent.resolve()
+
+UI_DIR = BASE_DIR / "ui"
 HTML_FILE = UI_DIR / "index.html"
-CONFIG_FILE = Path(__file__).parent / "config" / "devices.json"
+CONFIG_FILE = BASE_DIR / "config" / "devices.json"
 
 class OmniKSUApi:
     """
