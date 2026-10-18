@@ -288,27 +288,6 @@ function on_build_stop() {
 $('#go').onclick = on_build_start;
 $('#stop').onclick = on_build_stop;
 
-// Window Control buttons (dots)
-$('#btn-close').onclick = () => {
-  if (window.pywebview && window.pywebview.api) {
-    window.pywebview.api.close_window();
-  } else {
-    window.close();
-  }
-};
-
-$('#btn-min').onclick = () => {
-  if (window.pywebview && window.pywebview.api) {
-    window.pywebview.api.minimize_window();
-  }
-};
-
-$('#btn-max').onclick = () => {
-  if (window.pywebview && window.pywebview.api) {
-    window.pywebview.api.toggle_maximize();
-  }
-};
-
 // Initial logs
 log('INFO', 'OmniKSU Build Studio v1.0.0 initialized');
 log('INFO', 'Cloud runner: Ubuntu 22.04 (16GB RAM) ready');
