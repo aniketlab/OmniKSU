@@ -75,19 +75,19 @@ jobs:
             echo "IS_CLANG=1" >> $GITHUB_ENV
           fi
 
-      - name: OmniKSU: Detect & Analyze
+      - name: "OmniKSU: Detect & Analyze"
         run: |
           python3 omniksu.py detect kernel_source
 
-      - name: OmniKSU: Integrate Root Engine
+      - name: "OmniKSU: Integrate Root Engine"
         run: |
           python3 omniksu.py integrate kernel_source --engine ${{ github.event.inputs.root_engine }}
 
-      - name: OmniKSU: Apply Smart Manual Hooks
+      - name: "OmniKSU: Apply Smart Manual Hooks"
         run: |
           python3 omniksu.py patch kernel_source
 
-      - name: OmniKSU: Patch Target Defconfig
+      - name: "OmniKSU: Patch Target Defconfig"
         run: |
           python3 omniksu.py defconfig "kernel_source/arch/arm64/configs/${{ github.event.inputs.defconfig_name }}"
 

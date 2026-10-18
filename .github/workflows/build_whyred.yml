@@ -43,15 +43,15 @@ jobs:
           git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git -b pie-release toolchain/gcc64
           git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git -b pie-release toolchain/gcc32
 
-      - name: OmniKSU: Integrate Root Engine
+      - name: "OmniKSU: Integrate Root Engine"
         run: |
           python3 omniksu.py integrate kernel_source --engine ${{ github.event.inputs.root_engine }}
 
-      - name: OmniKSU: Apply Smart Manual Hooks
+      - name: "OmniKSU: Apply Smart Manual Hooks"
         run: |
           python3 omniksu.py patch kernel_source
 
-      - name: OmniKSU: Patch Target Defconfig
+      - name: "OmniKSU: Patch Target Defconfig"
         run: |
           python3 omniksu.py defconfig kernel_source/arch/arm64/configs/whyred-perf_defconfig
 
@@ -71,7 +71,7 @@ jobs:
           echo "[*] Compiling kernel..."
           make O=../out -j$(nproc --all)
 
-      - name: OmniKSU: Package into AnyKernel3 Zip
+      - name: "OmniKSU: Package into AnyKernel3 Zip"
         run: |
           python3 omniksu.py package out/arch/arm64/boot/Image.gz-dtb --device whyred --out OmniKSU-Whyred-BakaSU-Flashable.zip
 
