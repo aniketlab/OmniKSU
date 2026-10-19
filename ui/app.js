@@ -59,7 +59,13 @@ function seg(id, cb) {
   });
 }
 
-const first = id => $('#' + id + ' .on').childNodes[0].textContent.trim();
+const first = id => {
+  const onEl = $('#' + id + ' .on');
+  if (!onEl) return '';
+  const title = onEl.querySelector('.seg-title');
+  if (title) return title.textContent.trim();
+  return onEl.childNodes[0].textContent.trim();
+};
 
 // 4. UI State Synchronization
 function sync() {
@@ -242,12 +248,17 @@ async function search_sources() {
         const d = document.createElement('div');
         d.className = 'sb-item' + (item.is_recommended ? ' rec' : '');
         const recBadge = item.is_recommended ? `<span class="rec-badge">⭐ Recommended</span>` : '';
-        const metaReason = item.recommendation_reason ? `<span style="color:#2e7d32; font-weight:600;">[${item.recommendation_reason}]</span> · ` : '';
+        const metaReason = item.recommendation_reason ? `<span class="sb-meta-rec">[${item.recommendation_reason}]</span> ` : '';
 
         d.innerHTML = `
-          <div>
-            <div class="sb-item-title">${item.full_name} ${recBadge}</div>
-            <div class="sb-item-meta">${metaReason}${item.description.slice(0, 60)} · branch: ${item.default_branch}</div>
+          <div class="sb-item-main">
+            <div class="sb-item-header">
+              <span class="sb-item-title" title="${item.full_name}">${item.full_name}</span>
+              ${recBadge}
+            </div>
+            <div class="sb-item-meta">
+              ${metaReason}<span>${item.description.slice(0, 55)}</span> · <span class="sb-branch-tag">${item.default_branch}</span>
+            </div>
           </div>
           <div class="sb-item-stars">★ ${item.stars}</div>
         `;
@@ -439,8 +450,8 @@ async function on_build_start() {
         kernel_branch: kernelBranch,
         defconfig_name: defconfigName,
         toolchain_choice: toolchainPreset,
-        engine: eng.toLowerCase().includes('both') ? 'both' : (eng.toLowerCase().includes('baka') ? 'bakasu' : 'kernelsu-next'),
-        hook: hook.toLowerCase().includes('manual') ? 'manual' : 'kprobes',
+        engine: $('#eng .on')?.dataset.val || 'bakasu',
+        hook: $('#hook .on')?.dataset.val || 'manual',
         token: $('#tok').value,
         repo: $('#target-repo').value,
         threads: $('#thr').value,

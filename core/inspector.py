@@ -369,6 +369,7 @@ class RemoteKernelInspector:
             stars = item.get("stargazers_count", 0)
             score = stars * 3
             full_name = item.get("full_name", "").lower()
+            name = item.get("name", "").lower()
             q_simple = q.lower().replace(" ", "").replace("_", "").replace("-", "")
 
             for org in trusted_orgs:
@@ -380,6 +381,11 @@ class RemoteKernelInspector:
                 score += 150
             if "kernel" in full_name:
                 score += 50
+            if "kernel-source" in full_name or "kernel_source" in full_name or "bakasu" in full_name or "kernelsu" in full_name:
+                score += 120
+            # Deprioritize device/twrp trees that are not full kernel sources
+            if name.startswith("android_device_") or name.startswith("device_") or "twrp" in name:
+                score -= 200
             return score
 
         items.sort(key=calculate_score, reverse=True)
