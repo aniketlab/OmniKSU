@@ -68,23 +68,55 @@ class RemoteKernelInspector:
 
             codename = run_getprop("ro.product.device") or run_getprop("ro.build.product")
             model = run_getprop("ro.product.model") or codename
+            brand = run_getprop("ro.product.brand") or run_getprop("ro.product.manufacturer")
             android_ver = run_getprop("ro.build.version.release")
             miui_ver = run_getprop("ro.build.version.incremental")
             kernel_uname = run_cmd("uname -r")
 
-            # Extract major.minor from uname -r (e.g. 4.4.153-perf -> 4.4)
+            # Extract major.minor.sublevel from uname -r (e.g. 4.4.153-perf -> 4.4.153)
             kernel_match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", kernel_uname)
-            kernel_family = f"{kernel_match.group(1)}.{kernel_match.group(2)}" if kernel_match else "unknown"
+            kernel_family = "unknown"
+            kernel_full = "unknown"
+            if kernel_match:
+                maj = kernel_match.group(1)
+                min_v = kernel_match.group(2)
+                sub_v = kernel_match.group(3) or "0"
+                kernel_family = f"{maj}.{min_v}"
+                kernel_full = f"{maj}.{min_v}.{sub_v}"
+
+            is_stock_rom = bool(miui_ver or run_getprop("ro.miui.ui.version.name") or run_getprop("ro.oxygen.version"))
+
+            # Check config/devices.json for verified hardware profile match
+            config_file = Path(__file__).parent.parent / "config" / "devices.json"
+            matched_preset = None
+            if config_file.is_file():
+                try:
+                    import json
+                    with open(config_file, "r", encoding="utf-8") as f:
+                        presets = json.load(f).get("devices", {})
+                        c_low = codename.lower()
+                        for p_code, p_data in presets.items():
+                            aliases = [a.lower() for a in p_data.get("anykernel_device_names", [])]
+                            if p_code.lower() == c_low or c_low in aliases:
+                                matched_preset = dict(p_data)
+                                matched_preset["preset_id"] = p_code
+                                break
+                except Exception:
+                    pass
 
             return {
                 "connected": True,
                 "serial": device_serial,
                 "codename": codename,
                 "model": model,
+                "brand": brand,
                 "android_version": android_ver,
                 "miui_version": miui_ver,
+                "is_stock_rom": is_stock_rom,
                 "kernel_release": kernel_uname,
-                "kernel_family": kernel_family
+                "kernel_family": kernel_family,
+                "kernel_full_version": kernel_full,
+                "matched_preset": matched_preset
             }
 
         except Exception as e:
@@ -317,7 +349,7 @@ class RemoteKernelInspector:
         return re.sub(r"[^a-z0-9_]+", "_", q_clean).strip("_")
 
     @classmethod
-    def search_github_kernels(cls, query: str, token: Optional[str] = None) -> List[Dict[str, Any]]:
+    def search_github_kernels(cls, query: str, token: Optional[str] = None, phone_kernel: Optional[str] = None, phone_brand: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Searches GitHub for candidate kernel repositories matching a device name or codename.
         Ranks verified maintainers (LineageOS, PixelExperience, OEM orgs) as recommended.
@@ -348,6 +380,14 @@ class RemoteKernelInspector:
             f"{q}"
         ]
 
+        # If brand is known, add OEM specific query
+        if phone_brand:
+            b_low = phone_brand.lower()
+            if "xiaomi" in b_low or "redmi" in b_low or "poco" in b_low:
+                search_candidates.insert(0, f"user:MiCode {q}")
+            elif "oneplus" in b_low:
+                search_candidates.insert(0, f"user:OnePlusOSS {q}")
+
         items_dict = {}
         for sc in search_candidates:
             url = f"https://api.github.com/search/repositories?q={requests.utils.quote(sc)}&sort=stars&order=desc&per_page=6"
@@ -370,6 +410,7 @@ class RemoteKernelInspector:
             score = stars * 3
             full_name = item.get("full_name", "").lower()
             name = item.get("name", "").lower()
+            desc = (item.get("description") or "").lower()
             q_simple = q.lower().replace(" ", "").replace("_", "").replace("-", "")
 
             for org in trusted_orgs:
@@ -383,6 +424,24 @@ class RemoteKernelInspector:
                 score += 50
             if "kernel-source" in full_name or "kernel_source" in full_name or "bakasu" in full_name or "kernelsu" in full_name:
                 score += 120
+
+            # Hardware matching bonus based on connected phone
+            if phone_brand:
+                b_clean = phone_brand.lower()
+                if ("xiaomi" in b_clean or "redmi" in b_clean or "poco" in b_clean) and full_name.startswith("micode/"):
+                    score += 450
+                elif "oneplus" in b_clean and ("oneplus" in full_name or "oneplusoss" in full_name):
+                    score += 450
+
+            if phone_kernel:
+                pk_clean = phone_kernel.lower()
+                if pk_clean in full_name or pk_clean in desc:
+                    score += 400
+                elif "4.4.2" in desc or "4.4.2" in full_name:
+                    if pk_clean.startswith("4.4.1") or pk_clean == "4.4":
+                        # Upstreamed kernel on older stock phone - deprioritize
+                        score -= 250
+
             # Deprioritize device/twrp trees that are not full kernel sources
             if name.startswith("android_device_") or name.startswith("device_") or "twrp" in name:
                 score -= 200

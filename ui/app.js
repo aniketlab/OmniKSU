@@ -110,7 +110,7 @@ $('#btn-fill-example').onclick = () => {
 };
 
 // --- Smart Repo Inspector & Auto-Configuration ---
-function populate_dropdowns(info) {
+function populate_dropdowns(info, targetDefconfig = '') {
   // 1. Branches dropdown
   if (info.branches && info.branches.length > 0) {
     const sel = document.createElement('select');
@@ -140,7 +140,9 @@ function populate_dropdowns(info) {
       const opt = document.createElement('option');
       opt.value = cfg;
       opt.textContent = cfg;
-      if (codename && cfg.toLowerCase().includes(codename)) {
+      if (targetDefconfig && (cfg === targetDefconfig || cfg.endsWith('/' + targetDefconfig))) {
+        bestMatch = cfg;
+      } else if (!bestMatch && codename && cfg.toLowerCase().includes(codename)) {
         if (!bestMatch || cfg.includes('-perf')) bestMatch = cfg;
       }
       sel.appendChild(opt);
@@ -164,7 +166,42 @@ function show_compat_card(info) {
   $('#cc-os').textContent = info.android_target || 'Android 8.0 - 12.0';
   $('#cc-engine').textContent = (info.recommended_engine || 'BakaSU').toUpperCase();
   $('#cc-rationale').textContent = info.rationale || 'Kernel source analyzed successfully.';
-  $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
+
+  // Safety hardware check against connected phone
+  if (window.connectedDevice && window.connectedDevice.connected) {
+    const dev = window.connectedDevice;
+    const phoneKernel = dev.kernel_full_version || dev.kernel_release || '';
+    const repoKernel = info.version_info ? (info.version_info.full_version || info.version_info.family) : '';
+
+    if (repoKernel && phoneKernel) {
+      const isExactFull = dev.kernel_release.includes(repoKernel) || repoKernel === dev.kernel_full_version;
+      const isSameFamily = repoKernel.startsWith(dev.kernel_family);
+
+      if (isExactFull || (isSameFamily && repoKernel === dev.kernel_full_version)) {
+        $('#cc-notice').innerHTML = `✅ <b>100% Hardware Match:</b> Kernel source Linux <b>${repoKernel}</b> matches your connected <b>${dev.model}</b> (running Linux ${dev.kernel_release})! Tested and safe for Stock ${dev.is_stock_rom ? (dev.miui_version || 'OEM') : 'ROM'}.`;
+        $('#cc-notice').style.borderColor = '#4caf50';
+        $('#cc-notice').style.color = '#2e7d32';
+      } else if (isSameFamily) {
+        // e.g. Phone is 4.4.153, Repo is 4.4.271
+        $('#cc-notice').innerHTML = `⚠️ <b>Kernel Sublevel Mismatch Warning:</b> Your phone is running Linux <b>${dev.kernel_release}</b>, but this repo is Linux <b>${repoKernel}</b>.<br>Flashing an upstreamed kernel on Stock ${dev.is_stock_rom ? (dev.miui_version || 'OEM') : 'ROM'} may break Wi-Fi driver loading or cause bootloops! Ensure you use a matching ${dev.kernel_family} official source.`;
+        $('#cc-notice').style.borderColor = '#ff9800';
+        $('#cc-notice').style.color = '#e65100';
+      } else {
+        // Critical Mismatch (e.g. 4.4 vs 4.19 / 5.4)
+        $('#cc-notice').innerHTML = `🛑 <b>Critical Mismatch:</b> Your connected phone runs Linux <b>${dev.kernel_release}</b>, but this repo is Linux <b>${repoKernel}</b>! Flashing this will cause a bootloop!`;
+        $('#cc-notice').style.borderColor = '#f44336';
+        $('#cc-notice').style.color = '#c62828';
+      }
+    } else {
+      $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
+      $('#cc-notice').style.borderColor = '';
+      $('#cc-notice').style.color = '';
+    }
+  } else {
+    $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
+    $('#cc-notice').style.borderColor = '';
+    $('#cc-notice').style.color = '';
+  }
 
   // Auto-switch Engine button in UI
   if (info.recommended_engine) {
@@ -196,7 +233,7 @@ function show_compat_card(info) {
   sync();
 }
 
-async function scan_repo(url, branch = '') {
+async function scan_repo(url, branch = '', targetDefconfig = '') {
   if (!url || !url.includes('github.com')) return;
   log('INFO', 'Inspecting remote repository: ' + url + (branch ? ` (${branch})` : ''));
   setSt('Inspecting…', 'run');
@@ -205,7 +242,7 @@ async function scan_repo(url, branch = '') {
     try {
       const res = await window.pywebview.api.inspect_repo(url, branch);
       if (res && res.ok) {
-        populate_dropdowns(res);
+        populate_dropdowns(res, targetDefconfig);
         show_compat_card(res);
         log('OK', `Kernel ${res.version_info.full_version} analyzed! Found ${res.defconfigs.length} defconfigs and ${res.branches.length} branches.`);
         setSt('Ready', '');
@@ -220,13 +257,19 @@ async function scan_repo(url, branch = '') {
   }
 }
 
-async function search_sources() {
+async function search_sources(phoneKernel = '', phoneBrand = '') {
   const q = $('#dev-search-input').value.trim();
   if (!q) {
     log('WARN', 'Please enter a device name or codename to search.');
     return;
   }
-  log('INFO', `Searching GitHub for kernel sources matching: "${q}"...`);
+
+  if (!phoneKernel && window.connectedDevice) {
+    phoneKernel = window.connectedDevice.kernel_full_version || window.connectedDevice.kernel_family || '';
+    phoneBrand = window.connectedDevice.brand || '';
+  }
+
+  log('INFO', `Searching GitHub for kernel sources matching: "${q}"${phoneKernel ? ' (Targeting Linux ' + phoneKernel + ')' : ''}...`);
   setSt('Searching…', 'run');
 
   const box = $('#search-results-box');
@@ -236,7 +279,7 @@ async function search_sources() {
 
   if (window.pywebview && window.pywebview.api && window.pywebview.api.search_sources) {
     try {
-      const results = await window.pywebview.api.search_sources(q);
+      const results = await window.pywebview.api.search_sources(q, phoneKernel, phoneBrand);
       list.innerHTML = '';
       if (!results || results.length === 0) {
         list.innerHTML = '<div style="padding: 8px; color: var(--mute);">No kernel repositories found. Try another search term.</div>';
@@ -291,11 +334,42 @@ async function detect_phone() {
     try {
       const res = await window.pywebview.api.detect_connected_phone();
       if (res && res.connected) {
+        window.connectedDevice = res;
         $('#dev-codename').value = res.codename;
         $('#dev-search-input').value = res.codename;
-        log('OK', `Device Connected: ${res.model} [${res.codename}] | Android ${res.android_version} | Kernel: ${res.kernel_release}`);
-        setSt('Connected', '');
-        search_sources();
+        
+        log('OK', `Hardware Connected: ${res.model} [${res.codename}] | Running Linux ${res.kernel_release} on ${res.is_stock_rom ? 'Stock ' + (res.miui_version || 'OEM') : 'Android ' + res.android_version}`);
+
+        // 1. Check if verified hardware preset exists in devices.json (e.g. whyred, enchilada, hotdogb, etc.)
+        if (res.matched_preset) {
+          const p = res.matched_preset;
+          log('OK', `⭐ Auto-Matched 100% Tested Profile for [${p.name || res.codename}]!`);
+          log('INFO', `Auto-configuring official kernel source (${p.repo_url}) branch: ${p.branch}...`);
+
+          $('#kernel-repo').value = p.repo_url;
+          if (p.preferred_toolchain) $('#toolchain-preset').value = p.preferred_toolchain;
+
+          // Switch engine & hook mode
+          if (p.root_engine) {
+            $$('#eng button').forEach(b => {
+              b.classList.toggle('on', b.dataset.val === p.root_engine);
+            });
+          }
+          if (p.hook_mode) {
+            $$('#hook button').forEach(b => {
+              b.classList.toggle('on', b.dataset.val === p.hook_mode);
+            });
+          }
+
+          sync();
+          setSt('Phone Configured', '');
+          // Automatically scan the verified official repository with exact matching branch & defconfig!
+          await scan_repo(p.repo_url, p.branch, p.defconfig);
+        } else {
+          // If not in verified presets, search GitHub with phone kernel and brand filters
+          setSt('Connected', '');
+          search_sources(res.kernel_full_version || res.kernel_family, res.brand);
+        }
       } else {
         log('WARN', res.error || 'No device detected. Connect phone via USB with USB Debugging enabled.');
         setSt('No Device', 'err');
