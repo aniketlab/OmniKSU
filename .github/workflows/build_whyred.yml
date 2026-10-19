@@ -78,11 +78,13 @@ jobs:
 
       - name: "OmniKSU: Package into AnyKernel3 Zip"
         run: |
-          python3 omniksu.py package out/arch/arm64/boot/Image.gz-dtb --device whyred --out OmniKSU-Whyred-BakaSU-Flashable.zip
+          ENGINE="${{ github.event.inputs.root_engine }}"
+          echo "[*] Packaging kernel for engine: $ENGINE"
+          python3 omniksu.py package out/arch/arm64/boot/Image.gz-dtb --device whyred --out "OmniKSU-Whyred-${ENGINE}-Flashable.zip"
 
       - name: Upload Flashable Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OmniKSU-Whyred-BakaSU-Flashable
-          path: OmniKSU-Whyred-BakaSU-Flashable.zip
+          name: OmniKSU-Whyred-${{ github.event.inputs.root_engine }}-Flashable
+          path: OmniKSU-Whyred-*.zip
           retention-days: 14

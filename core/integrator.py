@@ -176,6 +176,46 @@ class RootIntegrator:
         with open(kbuild_file, "w", encoding="utf-8") as f:
             f.write(content)
 
+    def patch_kernelsu_compat(self) -> None:
+        """
+        Fixes legacy kernel (Linux < 4.19) compatibility issues in KernelSU-Next:
+        1. In drivers/kernelsu/selinux/rules.c: wraps unguarded selinux_state.ss
+           reference with #if defined(KSU_COMPAT_USE_SELINUX_STATE).
+        2. In drivers/kernelsu/runtime/ksud_integration.c: passes &fd instead of raw AT_FDCWD.
+        """
+        rules_c = self.ksu_dir / "selinux" / "rules.c"
+        if rules_c.is_file():
+            with open(rules_c, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            pattern = r"u32\s+seqno\s*=\s*selinux_state\.ss\s*\?\s*\+\+selinux_state\.ss->latest_granting\s*:\s*1\s*;"
+            if re.search(pattern, content):
+                replacement = (
+                    "#if defined(KSU_COMPAT_USE_SELINUX_STATE)\n"
+                    "\tu32 seqno = selinux_state.ss ? ++selinux_state.ss->latest_granting : 1;\n"
+                    "#else\n"
+                    "\tu32 seqno = 1;\n"
+                    "#endif"
+                )
+                content = re.sub(pattern, replacement, content)
+                with open(rules_c, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+        ksud_c = self.ksu_dir / "runtime" / "ksud_integration.c"
+        if ksud_c.is_file():
+            with open(ksud_c, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            pattern = r"return\s+ksu_handle_execveat_ksud\s*\(\s*AT_FDCWD\s*,\s*&filename_p\s*,\s*argv\s*,\s*NULL\s*,\s*NULL\s*\)\s*;"
+            if re.search(pattern, content):
+                replacement = (
+                    "int fd = AT_FDCWD;\n"
+                    "\treturn ksu_handle_execveat_ksud(&fd, &filename_p, argv, NULL, NULL);"
+                )
+                content = re.sub(pattern, replacement, content)
+                with open(ksud_c, "w", encoding="utf-8") as f:
+                    f.write(content)
+
     def integrate(self, target: str = "bakasu") -> Tuple[bool, str]:
         """
         Full integration flow: clones repo, wires Makefiles, and patches Kbuild.
@@ -189,5 +229,6 @@ class RootIntegrator:
             return False, wire_msg
 
         self.patch_kbuild_safety()
+        self.patch_kernelsu_compat()
 
         return True, f"Integration of {target} completed successfully."
