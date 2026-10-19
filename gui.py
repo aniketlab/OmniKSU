@@ -101,9 +101,17 @@ class OmniKSUApi:
         """Inspects a GitHub repository to auto-detect kernel version, branches, defconfigs, and engine."""
         return RemoteKernelInspector.inspect_github_repo(repo_url, branch or None)
 
-    def search_sources(self, query: str, phone_kernel: str = "", phone_brand: str = "") -> list:
-        """Searches GitHub for candidate kernel sources matching a device or codename."""
-        return RemoteKernelInspector.search_github_kernels(query, phone_kernel=phone_kernel or None, phone_brand=phone_brand or None)
+    def search_sources(self, query: str = "", phone_kernel: str = "", phone_brand: str = "", token: str = "") -> list:
+        """Searches candidate kernel sources matching a device or codename."""
+        if not isinstance(query, str):
+            query = ""
+        if not isinstance(phone_kernel, str):
+            phone_kernel = ""
+        if not isinstance(phone_brand, str):
+            phone_brand = ""
+        if not isinstance(token, str):
+            token = ""
+        return RemoteKernelInspector.search_github_kernels(query, token=token or None, phone_kernel=phone_kernel or None, phone_brand=phone_brand or None)
 
     def detect_connected_phone(self) -> dict:
         """Reads attached Android device properties over ADB."""

@@ -259,6 +259,9 @@ async function scan_repo(url, branch = '', targetDefconfig = '') {
 }
 
 async function search_sources(phoneKernel = '', phoneBrand = '') {
+  if (typeof phoneKernel !== 'string') phoneKernel = '';
+  if (typeof phoneBrand !== 'string') phoneBrand = '';
+
   const q = $('#dev-search-input').value.trim();
   if (!q) {
     log('WARN', 'Please enter a device name or codename to search.');
@@ -270,20 +273,21 @@ async function search_sources(phoneKernel = '', phoneBrand = '') {
     phoneBrand = window.connectedDevice.brand || '';
   }
 
-  log('INFO', `Searching GitHub for kernel sources matching: "${q}"${phoneKernel ? ' (Targeting Linux ' + phoneKernel + ')' : ''}...`);
+  log('INFO', `Searching kernel sources matching: "${q}"${phoneKernel ? ' (Targeting Linux ' + phoneKernel + ')' : ''}...`);
   setSt('Searching…', 'run');
 
   const box = $('#search-results-box');
   const list = $('#search-results-list');
   box.classList.remove('hide');
-  list.innerHTML = '<div style="padding: 8px; color: var(--mute);">Searching GitHub API...</div>';
+  list.innerHTML = '<div style="padding: 8px; color: var(--mute);">Scanning verified profiles &amp; GitHub...</div>';
 
   if (window.pywebview && window.pywebview.api && window.pywebview.api.search_sources) {
     try {
-      const results = await window.pywebview.api.search_sources(q, phoneKernel, phoneBrand);
+      const token = ($('#tok') ? $('#tok').value.trim() : '') || localStorage.getItem('omniksu_gh_token') || '';
+      const results = await window.pywebview.api.search_sources(q, phoneKernel, phoneBrand, token);
       list.innerHTML = '';
       if (!results || results.length === 0) {
-        list.innerHTML = '<div style="padding: 8px; color: var(--mute);">No kernel repositories found. Try another search term.</div>';
+        list.innerHTML = '<div style="padding: 8px; color: var(--mute);">No kernel repositories found. Try entering codename directly (e.g. whyred, beryllium).</div>';
         setSt('Idle', '');
         return;
       }
@@ -315,7 +319,7 @@ async function search_sources(phoneKernel = '', phoneBrand = '') {
           sync(); // Real-time update live status banner (#k1, etc.)
           box.classList.add('hide');
           log('OK', `Selected repository: ${item.full_name} (Codename: ${codename})`);
-          scan_repo(item.clone_url, item.default_branch);
+          scan_repo(item.clone_url, item.target_branch || item.default_branch, item.target_defconfig || '');
         };
         list.appendChild(d);
       });
@@ -395,12 +399,12 @@ $('#kernel-repo').onblur = () => {
   }
 };
 
-$('#btn-search-sources').onclick = search_sources;
+$('#btn-search-sources').onclick = () => search_sources();
 $('#dev-search-input').onkeydown = e => {
   if (e.key === 'Enter') search_sources();
 };
 
-$('#btn-detect-phone').onclick = detect_phone;
+$('#btn-detect-phone').onclick = () => detect_phone();
 
 // Sidebar navigation
 $$('.nav').forEach(n => {

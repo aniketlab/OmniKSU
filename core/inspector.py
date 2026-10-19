@@ -352,117 +352,172 @@ class RemoteKernelInspector:
             return parts[0]
         return re.sub(r"[^a-z0-9_]+", "_", q_clean).strip("_")
 
+    _SEARCH_CACHE: Dict[str, List[Dict[str, Any]]] = {}
+
     @classmethod
-    def search_github_kernels(cls, query: str, token: Optional[str] = None, phone_kernel: Optional[str] = None, phone_brand: Optional[str] = None) -> List[Dict[str, Any]]:
+    def search_github_kernels(cls, query: Any, token: Optional[str] = None, phone_kernel: Optional[Any] = None, phone_brand: Optional[Any] = None) -> List[Dict[str, Any]]:
         """
-        Searches GitHub for candidate kernel repositories matching a device name or codename.
-        Ranks verified maintainers (LineageOS, PixelExperience, OEM orgs) as recommended.
+        Searches candidate kernel repositories matching a device name or codename.
+        Prioritizes verified official OEM profiles from config/devices.json,
+        protects against GitHub API rate limits, and ranks authentic kernel sources.
         """
-        q = query.strip()
-        if not q:
+        # 1. Defensively sanitize all input types (e.g. if JS passes MouseEvent or dict)
+        q = str(query or "").strip()
+        if not q or q == "[object Object]":
             return []
 
+        pk_str = str(phone_kernel or "") if not isinstance(phone_kernel, (dict, list)) else ""
+        pb_str = str(phone_brand or "") if not isinstance(phone_brand, (dict, list)) else ""
+        tok_str = str(token or "").strip() if not isinstance(token, (dict, list)) else ""
+
+        cache_key = f"{q.lower()}::{pk_str}::{pb_str}"
+        if cache_key in cls._SEARCH_CACHE:
+            return cls._SEARCH_CACHE[cache_key]
+
         headers = dict(cls.HEADERS)
-        if token:
-            headers["Authorization"] = f"token {token}"
+        if tok_str:
+            headers["Authorization"] = f"token {tok_str}"
+
+        q_lower = q.lower().replace("-", " ").replace("_", " ")
+        q_tokens = [t for t in q_lower.split() if t]
+
+        results: List[Dict[str, Any]] = []
+        matched_codenames = set()
+        matched_platforms = set()
+
+        # 2. Check local verified database (config/devices.json) FIRST
+        config_file = Path(__file__).parent.parent / "config" / "devices.json"
+        if config_file.is_file():
+            try:
+                import json
+                with open(config_file, "r", encoding="utf-8") as f:
+                    presets = json.load(f).get("devices", {})
+                    for p_code, p_data in presets.items():
+                        p_name = p_data.get("name", "").lower()
+                        p_aliases = [a.lower() for a in p_data.get("anykernel_device_names", [])]
+                        p_plat = p_data.get("platform", "").lower()
+
+                        is_match = (
+                            p_code.lower() == q_lower or
+                            p_code.lower() in q_tokens or
+                            q_lower in p_name or
+                            all(t in p_name.split() or t in p_name for t in q_tokens) or
+                            any(q_lower == a or a in q_tokens for a in p_aliases)
+                        )
+
+                        if is_match:
+                            matched_codenames.add(p_code.lower())
+                            if p_plat:
+                                matched_platforms.add(p_plat)
+                            fn = "/".join(p_data["repo_url"].rstrip("/").split("/")[-2:])
+                            results.append({
+                                "name": fn.split("/")[-1],
+                                "full_name": fn,
+                                "url": p_data["repo_url"],
+                                "clone_url": p_data["repo_url"],
+                                "stars": 999,
+                                "default_branch": p_data.get("branch", "main"),
+                                "description": f"Verified official source for {p_data.get('name', p_code)} ({p_data.get('kernel_full_version', '')}) · {p_data.get('tested_stock_os', '')}",
+                                "is_recommended": True,
+                                "recommendation_reason": f"Official Profile ({p_data.get('name', p_code)})",
+                                "detected_codename": p_code,
+                                "target_defconfig": p_data.get("defconfig"),
+                                "target_branch": p_data.get("branch")
+                            })
+            except Exception:
+                pass
+
+        # 3. Query GitHub Search API for community repositories
+        primary_code = list(matched_codenames)[0] if matched_codenames else None
+        primary_plat = list(matched_platforms)[0] if matched_platforms else None
+
+        search_candidates = []
+        if primary_code:
+            search_candidates.append(f"android_kernel_{primary_code} in:name")
+            if primary_plat:
+                search_candidates.append(f"android_kernel_{primary_plat} in:name")
+        else:
+            q_clean = q.lower().replace(" ", "_")
+            search_candidates.append(f"android_kernel_{q_clean} in:name")
+            search_candidates.append(f"{q} kernel")
 
         trusted_orgs = [
             "lineageos", "pixelexperience-devices", "arrowos-devices", "evolution-x-devices",
-            "crdroidandroid", "micode", "oneplus", "oneplus-10r", "oneplus-7t-pro-development",
+            "crdroidandroid", "micode", "oneplusoss", "oneplus", "oneplus-10r", "oneplus-7t-pro-development",
             "cucumbermtk", "motorola", "realme-kernel-opensource", "sony", "asus-rog",
             "nothing-kernel", "radcolor", "ivon852"
         ]
 
-        q_clean = q.lower().replace(" ", "_")
-        q_hyphen = q.lower().replace(" ", "-")
+        items_dict: Dict[str, Any] = {}
+        # Pre-seed existing verified repos
+        for r in results:
+            items_dict[r["full_name"].lower()] = r
 
-        search_candidates = [
-            f"android_kernel_{q_clean} in:name",
-            f"kernel_{q_clean} in:name",
-            f"{q} kernel",
-            f"{q} android",
-            f"{q}"
-        ]
-
-        # If brand is known, add OEM specific query
-        if phone_brand:
-            b_low = phone_brand.lower()
-            if "xiaomi" in b_low or "redmi" in b_low or "poco" in b_low:
-                search_candidates.insert(0, f"user:MiCode {q}")
-            elif "oneplus" in b_low:
-                search_candidates.insert(0, f"user:OnePlusOSS {q}")
-
-        items_dict = {}
-        for sc in search_candidates:
-            url = f"https://api.github.com/search/repositories?q={requests.utils.quote(sc)}&sort=stars&order=desc&per_page=6"
+        rate_limited = False
+        for sc in search_candidates[:2]:
+            url = f"https://api.github.com/search/repositories?q={requests.utils.quote(sc)}&sort=stars&order=desc&per_page=8"
             try:
-                r = requests.get(url, headers=headers, timeout=6)
+                r = requests.get(url, headers=headers, timeout=5)
                 if r.status_code == 200:
                     for it in r.json().get("items", []):
                         fn = it.get("full_name", "")
-                        if fn and fn not in items_dict:
-                            items_dict[fn] = it
-                if len(items_dict) >= 8:
+                        if fn and fn.lower() not in items_dict:
+                            items_dict[fn.lower()] = it
+                elif r.status_code == 403:
+                    rate_limited = True
                     break
             except Exception:
                 pass
 
-        items = list(items_dict.values())
+        community_items = [it for fn, it in items_dict.items() if "stargazers_count" in it]
 
         def calculate_score(item: dict) -> int:
             stars = item.get("stargazers_count", 0)
-            score = stars * 3
+            score = stars * 2
             full_name = item.get("full_name", "").lower()
             name = item.get("name", "").lower()
             desc = (item.get("description") or "").lower()
-            q_simple = q.lower().replace(" ", "").replace("_", "").replace("-", "")
 
+            # Target codename / platform bonus
+            if primary_code and (primary_code in name or primary_code in desc):
+                score += 500
+            if primary_plat and (primary_plat in name or primary_plat in desc):
+                score += 400
+
+            # Penalize unrelated platform mismatches (e.g. sm8150 showing for sm8250 OnePlus 8 Pro)
+            if primary_plat == "sm8250" and "sm8150" in full_name:
+                score -= 800
+            elif primary_plat == "sm8150" and "sm8250" in full_name:
+                score -= 800
+
+            # Verified maintainer bonus ONLY IF related to target query or platform
             for org in trusted_orgs:
                 if full_name.startswith(org + "/"):
-                    score += 300
+                    if not primary_code or primary_code in full_name or (primary_plat and primary_plat in full_name):
+                        score += 350
                     break
 
-            if q_simple in full_name:
-                score += 150
-            if "kernel" in full_name:
+            if "kernel" in name:
                 score += 50
             if "kernel-source" in full_name or "kernel_source" in full_name or "bakasu" in full_name or "kernelsu" in full_name:
-                score += 120
+                score += 100
 
-            # Hardware matching bonus based on connected phone
-            if phone_brand:
-                b_clean = phone_brand.lower()
-                if ("xiaomi" in b_clean or "redmi" in b_clean or "poco" in b_clean) and full_name.startswith("micode/"):
-                    score += 450
-                elif "oneplus" in b_clean and ("oneplus" in full_name or "oneplusoss" in full_name):
-                    score += 450
-
-            if phone_kernel:
-                pk_clean = phone_kernel.lower()
-                if pk_clean in full_name or pk_clean in desc:
-                    score += 400
-                elif "4.4.2" in desc or "4.4.2" in full_name:
-                    if pk_clean.startswith("4.4.1") or pk_clean == "4.4":
-                        # Upstreamed kernel on older stock phone - deprioritize
-                        score -= 250
-
-            # Deprioritize device/twrp trees that are not full kernel sources
-            if name.startswith("android_device_") or name.startswith("device_") or "twrp" in name:
-                score -= 200
+            # Deprioritize device/twrp trees
+            if name.startswith("android_device_") or name.startswith("device_") or "twrp" in name or "vendor_" in name:
+                score -= 400
             return score
 
-        items.sort(key=calculate_score, reverse=True)
+        community_items.sort(key=calculate_score, reverse=True)
 
-        results = []
-        for idx, item in enumerate(items[:10]):
+        for idx, item in enumerate(community_items[:8]):
             fn = item["full_name"]
-            is_rec = (idx == 0)
-            det_codename = cls.extract_codename_from_repo(item["name"], q)
+            is_rec = (len(results) == 0 and idx == 0)
+            det_codename = primary_code or cls.extract_codename_from_repo(item["name"], q)
 
             rec_reason = ""
             if is_rec:
                 if any(fn.lower().startswith(o + "/") for o in trusted_orgs):
-                    rec_reason = "Verified Community / OEM Maintainer"
+                    rec_reason = "Verified Community Maintainer"
                 else:
                     rec_reason = f"Top Match ({item['stargazers_count']}★)"
 
@@ -478,4 +533,6 @@ class RemoteKernelInspector:
                 "recommendation_reason": rec_reason,
                 "detected_codename": det_codename
             })
+
+        cls._SEARCH_CACHE[cache_key] = results
         return results
