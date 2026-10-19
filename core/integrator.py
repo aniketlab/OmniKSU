@@ -216,6 +216,60 @@ class RootIntegrator:
                 with open(ksud_c, "w", encoding="utf-8") as f:
                     f.write(content)
 
+        # 3. Fix compat/kernel_compat.h for missing kvcalloc, in_compat_syscall, KSYM_NAME_LEN on < 4.12
+        compat_h = self.ksu_dir / "compat" / "kernel_compat.h"
+        if compat_h.is_file():
+            with open(compat_h, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            if "ksu_kvcalloc" not in content:
+                content = re.sub(
+                    r"(static\s+inline\s+void\s+\*ksu_kvmalloc[^\}]+\}\s*)",
+                    r"\1\nstatic inline void *ksu_kvcalloc(size_t n, size_t size, gfp_t flags)\n{\n\treturn kcalloc(n, size, flags);\n}\n",
+                    content
+                )
+                content = content.replace("#define kvfree ksu_kvfree", "#define kvcalloc ksu_kvcalloc\n#define kvfree ksu_kvfree")
+
+            if "in_compat_syscall" not in content:
+                compat_additions = (
+                    "\n#ifndef KSYM_NAME_LEN\n"
+                    "#include <linux/kallsyms.h>\n"
+                    "#ifndef KSYM_NAME_LEN\n"
+                    "#define KSYM_NAME_LEN 128\n"
+                    "#endif\n"
+                    "#endif\n\n"
+                    "#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)\n"
+                    "#ifndef in_compat_syscall\n"
+                    "#define in_compat_syscall is_compat_task\n"
+                    "#endif\n"
+                    "#endif\n"
+                )
+                content += compat_additions
+
+            with open(compat_h, "w", encoding="utf-8") as f:
+                f.write(content)
+
+        # 4. Fix supercall/dispatch.c for KSYM_NAME_LEN, kvcalloc and cmd.arg cast
+        dispatch_c = self.ksu_dir / "supercall" / "dispatch.c"
+        if dispatch_c.is_file():
+            with open(dispatch_c, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            if '"compat/kernel_compat.h"' not in content:
+                content = '#include <linux/kallsyms.h>\n#include "compat/kernel_compat.h"\n' + content
+
+            if "#ifndef KSYM_NAME_LEN" not in content:
+                content = "#ifndef KSYM_NAME_LEN\n#define KSYM_NAME_LEN 128\n#endif\n" + content
+
+            content = re.sub(
+                r"strncpy_from_user\s*\(\s*mnt\s*,\s*cmd\.arg\s*,\s*sizeof\s*\(\s*mnt\s*\)\s*\)",
+                "strncpy_from_user(mnt, (const char __user *)(uintptr_t)cmd.arg, sizeof(mnt))",
+                content
+            )
+
+            with open(dispatch_c, "w", encoding="utf-8") as f:
+                f.write(content)
+
     def integrate(self, target: str = "bakasu") -> Tuple[bool, str]:
         """
         Full integration flow: clones repo, wires Makefiles, and patches Kbuild.
