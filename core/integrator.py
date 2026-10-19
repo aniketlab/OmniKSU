@@ -19,7 +19,7 @@ class RootIntegrator:
         },
         "kernelsu-next": {
             "url": "https://github.com/KernelSU-Next/KernelSU-Next.git",
-            "branch": "next",
+            "branch": "legacy",
             "name": "KernelSU-Next"
         }
     }

@@ -328,13 +328,13 @@ class SmartPatcher:
 
         header_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
-            "extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user *arg);\n"
+            "extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);\n"
             "#endif\n"
         )
 
         call_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
-            "\tksu_handle_sys_reboot(magic1, magic2, cmd, arg);\n"
+            "\tksu_handle_sys_reboot(magic1, magic2, cmd, &arg);\n"
             "#endif\n"
         )
 

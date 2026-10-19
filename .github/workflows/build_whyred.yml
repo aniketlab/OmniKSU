@@ -6,11 +6,11 @@ on:
       root_engine:
         description: "Root Engine to Integrate"
         required: true
-        default: "bakasu"
+        default: "kernelsu-next"
         type: choice
         options:
-          - bakasu
           - kernelsu-next
+          - bakasu
 
 jobs:
   build:
