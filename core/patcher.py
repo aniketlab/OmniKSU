@@ -53,7 +53,7 @@ class SmartPatcher:
         header_hook = (
             "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n"
             "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags);\n"
-            "extern int ksu_handle_post_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags, int *retval);\n"
+            "int __attribute__((weak)) ksu_handle_post_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags, int *retval) { return 0; }\n"
             "#endif\n"
         )
 
@@ -493,7 +493,7 @@ class SmartPatcher:
                     f.write(content)
                 fixed.append("runtime/ksud_integration.c (fd pointer fix)")
 
-        # 3. Fix compat/kernel_compat.h for missing kvcalloc, in_compat_syscall, KSYM_NAME_LEN on < 4.12
+        # 3. Fix compat/kernel_compat.h for missing kvcalloc, ALIGN_DOWN, in_compat_syscall, KSYM_NAME_LEN on < 4.12
         compat_h = ksu_dir / "compat" / "kernel_compat.h"
         if compat_h.is_file():
             with open(compat_h, "r", encoding="utf-8", errors="ignore") as f:
@@ -507,27 +507,70 @@ class SmartPatcher:
                 )
                 content = content.replace("#define kvfree ksu_kvfree", "#define kvcalloc ksu_kvcalloc\n#define kvfree ksu_kvfree")
 
-            if "in_compat_syscall" not in content:
-                compat_additions = (
+            if "ALIGN_DOWN" not in content:
+                content += (
+                    "\n#ifndef ALIGN_DOWN\n"
+                    "#define ALIGN_DOWN(x, a) __ALIGN_KERNEL((x) - ((a) - 1), (a))\n"
+                    "#endif\n"
+                )
+
+            if "KSYM_NAME_LEN" not in content:
+                content += (
                     "\n#ifndef KSYM_NAME_LEN\n"
                     "#include <linux/kallsyms.h>\n"
                     "#ifndef KSYM_NAME_LEN\n"
                     "#define KSYM_NAME_LEN 128\n"
                     "#endif\n"
-                    "#endif\n\n"
-                    "#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)\n"
+                    "#endif\n"
+                )
+
+            if "in_compat_syscall" not in content:
+                content += (
+                    "\n#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)\n"
                     "#ifndef in_compat_syscall\n"
                     "#define in_compat_syscall is_compat_task\n"
                     "#endif\n"
                     "#endif\n"
                 )
-                content += compat_additions
 
             with open(compat_h, "w", encoding="utf-8") as f:
                 f.write(content)
-            fixed.append("compat/kernel_compat.h (kvcalloc & in_compat_syscall backports)")
+            fixed.append("compat/kernel_compat.h (kvcalloc, ALIGN_DOWN & compat backports)")
 
-        # 4. Fix supercall/dispatch.c for KSYM_NAME_LEN, kvcalloc and cmd.arg cast
+        # 4. Inject compat header into include/klog.h so all drivers/kernelsu files inherit it
+        klog_h = ksu_dir / "include" / "klog.h"
+        if klog_h.is_file():
+            with open(klog_h, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if '"compat/kernel_compat.h"' not in content:
+                content = '#include "compat/kernel_compat.h"\n' + content
+                with open(klog_h, "w", encoding="utf-8") as f:
+                    f.write(content)
+                fixed.append("include/klog.h (injected kernel_compat.h)")
+
+        # 5. Fix manager/apk_sign.c for kvmalloc
+        apk_sign_c = ksu_dir / "manager" / "apk_sign.c"
+        if apk_sign_c.is_file():
+            with open(apk_sign_c, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if '"compat/kernel_compat.h"' not in content:
+                content = '#include "compat/kernel_compat.h"\n' + content
+                with open(apk_sign_c, "w", encoding="utf-8") as f:
+                    f.write(content)
+                fixed.append("manager/apk_sign.c (kvmalloc fix)")
+
+        # 6. Fix feature/adb_root.c for ALIGN_DOWN
+        adb_root_c = ksu_dir / "feature" / "adb_root.c"
+        if adb_root_c.is_file():
+            with open(adb_root_c, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            if '"compat/kernel_compat.h"' not in content:
+                content = '#include "compat/kernel_compat.h"\n' + content
+                with open(adb_root_c, "w", encoding="utf-8") as f:
+                    f.write(content)
+                fixed.append("feature/adb_root.c (ALIGN_DOWN fix)")
+
+        # 7. Fix supercall/dispatch.c for KSYM_NAME_LEN, kvcalloc and cmd.arg cast
         dispatch_c = ksu_dir / "supercall" / "dispatch.c"
         if dispatch_c.is_file():
             with open(dispatch_c, "r", encoding="utf-8", errors="ignore") as f:
