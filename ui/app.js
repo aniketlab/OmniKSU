@@ -63,8 +63,8 @@ const first = id => $('#' + id + ' .on').childNodes[0].textContent.trim();
 
 // 4. UI State Synchronization
 function sync() {
-  const dev = $('#dev').value;
-  $('#k1').textContent = dev === 'custom' ? 'Custom kernel' : `${dev} · ${dev === 'enchilada' ? '4.9' : '4.4'}`;
+  const codename = ($('#dev-codename').value || '').trim() || 'Universal Device';
+  $('#k1').textContent = codename;
   $('#k2').textContent = first('eng');
   $('#k3').textContent = first('hook');
 
@@ -82,17 +82,239 @@ function on_mode_change(b) {
   log('INFO', 'Build mode: ' + (isCloud ? 'Cloud (GitHub Actions - Free Runner)' : 'Local (WSL2 / Native Linux)'));
 }
 
-function on_device_select() {
-  const val = $('#dev').value;
-  $('#cust').classList.toggle('show', val === 'custom');
-  sync();
-  log('INFO', 'Device profile selected: ' + $('#dev').selectedOptions[0].text);
-}
-
 seg('mode', on_mode_change);
 seg('eng', sync);
 seg('hook', sync);
-$('#dev').onchange = on_device_select;
+
+$('#dev-codename').oninput = sync;
+$('#toolchain-preset').onchange = () => {
+  log('INFO', 'Toolchain preset: ' + $('#toolchain-preset').selectedOptions[0].text);
+  sync();
+};
+
+// Fill Example Button
+$('#btn-fill-example').onclick = () => {
+  $('#dev-codename').value = 'whyred';
+  $('#toolchain-preset').value = 'gcc-4.9';
+  $('#kernel-repo').value = 'https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git';
+  $('#dev-search-input').value = 'whyred';
+  scan_repo('https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git', 'tulip-p-oss');
+  sync();
+  log('OK', 'Loaded verified test configuration (Redmi Note 5 Pro - Whyred).');
+};
+
+// --- Smart Repo Inspector & Auto-Configuration ---
+function populate_dropdowns(info) {
+  // 1. Branches dropdown
+  if (info.branches && info.branches.length > 0) {
+    const sel = document.createElement('select');
+    sel.id = 'kernel-branch';
+    info.branches.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      if (b === info.active_branch) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = () => {
+      scan_repo($('#kernel-repo').value.trim(), sel.value);
+    };
+    $('#branch-container').innerHTML = '';
+    $('#branch-container').appendChild(sel);
+  }
+
+  // 2. Defconfigs dropdown
+  if (info.defconfigs && info.defconfigs.length > 0) {
+    const sel = document.createElement('select');
+    sel.id = 'kernel-defconfig';
+    const codename = ($('#dev-codename').value || '').toLowerCase().trim();
+    let bestMatch = '';
+
+    info.defconfigs.forEach(cfg => {
+      const opt = document.createElement('option');
+      opt.value = cfg;
+      opt.textContent = cfg;
+      if (codename && cfg.toLowerCase().includes(codename)) {
+        if (!bestMatch || cfg.includes('-perf')) bestMatch = cfg;
+      }
+      sel.appendChild(opt);
+    });
+
+    if (bestMatch) sel.value = bestMatch;
+    else if (info.defconfigs.length > 0) sel.value = info.defconfigs[0];
+
+    $('#defconfig-container').innerHTML = '';
+    $('#defconfig-container').appendChild(sel);
+  }
+}
+
+function show_compat_card(info) {
+  const card = $('#compat-card');
+  if (!card) return;
+  card.classList.remove('hide');
+
+  const ver = info.version_info ? (info.version_info.full_version || info.version_info.family) : 'Unknown';
+  $('#cc-ver').textContent = 'Linux ' + ver;
+  $('#cc-os').textContent = info.android_target || 'Android 8.0 - 12.0';
+  $('#cc-engine').textContent = (info.recommended_engine || 'BakaSU').toUpperCase();
+  $('#cc-rationale').textContent = info.rationale || 'Kernel source analyzed successfully.';
+  $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
+
+  // Auto-switch Engine button in UI
+  if (info.recommended_engine) {
+    $$('#eng button').forEach(b => {
+      const val = b.dataset.val;
+      if (val === info.recommended_engine) {
+        $$('#eng button').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+      }
+    });
+  }
+
+  // Auto-switch Hook button in UI
+  if (info.recommended_hook) {
+    $$('#hook button').forEach(b => {
+      const val = b.dataset.val;
+      if (val === info.recommended_hook) {
+        $$('#hook button').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+      }
+    });
+  }
+
+  // Auto-switch Toolchain preset
+  if (info.recommended_toolchain) {
+    $('#toolchain-preset').value = info.recommended_toolchain;
+  }
+
+  sync();
+}
+
+async function scan_repo(url, branch = '') {
+  if (!url || !url.includes('github.com')) return;
+  log('INFO', 'Inspecting remote repository: ' + url + (branch ? ` (${branch})` : ''));
+  setSt('Inspecting…', 'run');
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.inspect_repo) {
+    try {
+      const res = await window.pywebview.api.inspect_repo(url, branch);
+      if (res && res.ok) {
+        populate_dropdowns(res);
+        show_compat_card(res);
+        log('OK', `Kernel ${res.version_info.full_version} analyzed! Found ${res.defconfigs.length} defconfigs and ${res.branches.length} branches.`);
+        setSt('Ready', '');
+      } else {
+        log('WARN', 'Could not inspect repo: ' + (res.error || 'Unknown error'));
+        setSt('Idle', '');
+      }
+    } catch (e) {
+      log('ERR', 'Inspection error: ' + e.message);
+      setSt('Idle', '');
+    }
+  }
+}
+
+async function search_sources() {
+  const q = $('#dev-search-input').value.trim();
+  if (!q) {
+    log('WARN', 'Please enter a device name or codename to search.');
+    return;
+  }
+  log('INFO', `Searching GitHub for kernel sources matching: "${q}"...`);
+  setSt('Searching…', 'run');
+
+  const box = $('#search-results-box');
+  const list = $('#search-results-list');
+  box.classList.remove('hide');
+  list.innerHTML = '<div style="padding: 8px; color: var(--mute);">Searching GitHub API...</div>';
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.search_sources) {
+    try {
+      const results = await window.pywebview.api.search_sources(q);
+      list.innerHTML = '';
+      if (!results || results.length === 0) {
+        list.innerHTML = '<div style="padding: 8px; color: var(--mute);">No kernel repositories found. Try another search term.</div>';
+        setSt('Idle', '');
+        return;
+      }
+
+      results.forEach(item => {
+        const d = document.createElement('div');
+        d.className = 'sb-item' + (item.is_recommended ? ' rec' : '');
+        const recBadge = item.is_recommended ? `<span class="rec-badge">⭐ Recommended</span>` : '';
+        const metaReason = item.recommendation_reason ? `<span style="color:#2e7d32; font-weight:600;">[${item.recommendation_reason}]</span> · ` : '';
+
+        d.innerHTML = `
+          <div>
+            <div class="sb-item-title">${item.full_name} ${recBadge}</div>
+            <div class="sb-item-meta">${metaReason}${item.description.slice(0, 60)} · branch: ${item.default_branch}</div>
+          </div>
+          <div class="sb-item-stars">★ ${item.stars}</div>
+        `;
+
+        d.onclick = () => {
+          $('#kernel-repo').value = item.clone_url;
+          // Set real-time codename immediately
+          const codename = item.detected_codename || q.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          $('#dev-codename').value = codename;
+          sync(); // Real-time update live status banner (#k1, etc.)
+          box.classList.add('hide');
+          log('OK', `Selected repository: ${item.full_name} (Codename: ${codename})`);
+          scan_repo(item.clone_url, item.default_branch);
+        };
+        list.appendChild(d);
+      });
+      setSt('Idle', '');
+    } catch (e) {
+      list.innerHTML = `<div style="padding: 8px; color: #e53935;">Search failed: ${e.message}</div>`;
+      setSt('Idle', '');
+    }
+  }
+}
+
+async function detect_phone() {
+  log('INFO', 'Scanning USB ports for connected Android devices via ADB...');
+  setSt('Checking USB…', 'run');
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.detect_connected_phone) {
+    try {
+      const res = await window.pywebview.api.detect_connected_phone();
+      if (res && res.connected) {
+        $('#dev-codename').value = res.codename;
+        $('#dev-search-input').value = res.codename;
+        log('OK', `Device Connected: ${res.model} [${res.codename}] | Android ${res.android_version} | Kernel: ${res.kernel_release}`);
+        setSt('Connected', '');
+        search_sources();
+      } else {
+        log('WARN', res.error || 'No device detected. Connect phone via USB with USB Debugging enabled.');
+        setSt('No Device', 'err');
+      }
+    } catch (e) {
+      log('ERR', 'ADB error: ' + e.message);
+      setSt('Idle', '');
+    }
+  }
+}
+
+$('#btn-scan-repo').onclick = () => {
+  const branchEl = $('#kernel-branch');
+  const branch = branchEl ? (branchEl.value || '') : '';
+  scan_repo($('#kernel-repo').value.trim(), branch);
+};
+
+$('#kernel-repo').onblur = () => {
+  const val = $('#kernel-repo').value.trim();
+  if (val && val.includes('github.com') && $('#compat-card').classList.contains('hide')) {
+    scan_repo(val);
+  }
+};
+
+$('#btn-search-sources').onclick = search_sources;
+$('#dev-search-input').onkeydown = e => {
+  if (e.key === 'Enter') search_sources();
+};
+
+$('#btn-detect-phone').onclick = detect_phone;
 
 // Sidebar navigation
 $$('.nav').forEach(n => {
@@ -180,11 +402,19 @@ function fmt() {
 // Build Execution
 async function on_build_start() {
   const isCloud = $('#mode .on').dataset.m === 'cloud';
-  const dev = $('#dev').value;
-  const k = dev === 'enchilada' ? '4.9' : '4.4';
+  const codename = ($('#dev-codename').value || '').trim() || 'generic';
+  const kernelRepo = ($('#kernel-repo').value || '').trim();
+  const kernelBranch = ($('#kernel-branch').value || '').trim() || 'main';
+  const defconfigName = ($('#kernel-defconfig').value || '').trim();
+  const toolchainPreset = $('#toolchain-preset').value;
   const eng = first('eng');
   const hook = first('hook');
-  const devName = dev === 'custom' ? ($('#cust-defconfig').value || 'custom') : dev;
+
+  if (isCloud && (!kernelRepo || !defconfigName)) {
+    log('ERR', 'Please enter Kernel Git Repo URL and Defconfig File Name before starting!');
+    setSt('Input Required', 'err');
+    return;
+  }
 
   t0 = Date.now();
   $('#go').disabled = true;
@@ -197,23 +427,24 @@ async function on_build_start() {
     $('#el').textContent = 'Elapsed ' + fmt();
   }, 1000);
 
-  log('INFO', `Starting OmniKSU ${isCloud ? 'Cloud' : 'Local'} Build Pipeline...`);
+  log('INFO', `Starting OmniKSU ${isCloud ? 'Cloud' : 'Local'} Build Pipeline for [${codename}]...`);
 
   // Check if running in PyWebView with Python backend
   if (window.pywebview && window.pywebview.api) {
     try {
       const payload = {
         mode: isCloud ? 'cloud' : 'local',
-        device: dev,
-        engine: eng.toLowerCase().includes('baka') ? 'bakasu' : 'kernelsu-next',
+        device: codename,
+        kernel_repo: kernelRepo,
+        kernel_branch: kernelBranch,
+        defconfig_name: defconfigName,
+        toolchain_choice: toolchainPreset,
+        engine: eng.toLowerCase().includes('both') ? 'both' : (eng.toLowerCase().includes('baka') ? 'bakasu' : 'kernelsu-next'),
         hook: hook.toLowerCase().includes('manual') ? 'manual' : 'kprobes',
         token: $('#tok').value,
         repo: $('#target-repo').value,
         threads: $('#thr').value,
-        out_dir: $('#out').value,
-        custom_repo: $('#cust-repo').value,
-        custom_branch: $('#cust-branch').value,
-        custom_defconfig: $('#cust-defconfig').value
+        out_dir: $('#out').value
       };
 
       if (isCloud) {

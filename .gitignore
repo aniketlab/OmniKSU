@@ -25,6 +25,9 @@ BakaSU/
 # Logs and scratch
 *.log
 *.bak
+*.txt
+*.apk
+BakaSU-Manager/
 .DS_Store
 Thumbs.db
 

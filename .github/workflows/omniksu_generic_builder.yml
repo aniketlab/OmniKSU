@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       device_codename:
-        description: "Device Codename (e.g., whyred, enchilada)"
+        description: "Device Codename (e.g., whyred, enchilada, sm8150)"
         required: true
         default: "whyred"
       kernel_repo:
@@ -20,13 +20,22 @@ on:
         required: true
         default: "whyred-perf_defconfig"
       root_engine:
-        description: "Root Engine"
+        description: "Root Engine Choice"
         required: true
         default: "bakasu"
         type: choice
         options:
           - bakasu
           - kernelsu-next
+          - both
+      hook_mode:
+        description: "Hooking Strategy"
+        required: true
+        default: "manual"
+        type: choice
+        options:
+          - manual
+          - kprobes
       toolchain_choice:
         description: "Toolchain Preset"
         required: true
@@ -37,9 +46,28 @@ on:
           - proton-clang
 
 jobs:
-  build_universal:
-    name: OmniKSU Universal Pipeline (${{ github.event.inputs.device_codename }})
+  matrix_prep:
+    name: Prepare Build Matrix
     runs-on: ubuntu-22.04
+    outputs:
+      engines: ${{ steps.set-engines.outputs.engines }}
+    steps:
+      - id: set-engines
+        run: |
+          if [ "${{ github.event.inputs.root_engine }}" = "both" ]; then
+            echo 'engines=["kernelsu-next", "bakasu"]' >> $GITHUB_OUTPUT
+          else
+            echo "engines=[\"${{ github.event.inputs.root_engine }}\"]" >> $GITHUB_OUTPUT
+          fi
+
+  build_universal:
+    name: OmniKSU (${{ matrix.engine }} · ${{ github.event.inputs.device_codename }})
+    needs: matrix_prep
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.matrix_prep.outputs.engines) }}
     steps:
       - name: Checkout OmniKSU
         uses: actions/checkout@v4
@@ -82,17 +110,32 @@ jobs:
         run: |
           python3 omniksu.py detect kernel_source
 
-      - name: "OmniKSU: Integrate Root Engine"
+      - name: "OmniKSU: Integrate Root Engine (${{ matrix.engine }})"
         run: |
-          python3 omniksu.py integrate kernel_source --engine ${{ github.event.inputs.root_engine }}
+          python3 omniksu.py integrate kernel_source --engine ${{ matrix.engine }}
 
       - name: "OmniKSU: Apply Smart Manual Hooks"
         run: |
-          python3 omniksu.py patch kernel_source
+          if [ "${{ github.event.inputs.hook_mode }}" = "manual" ]; then
+            python3 omniksu.py patch kernel_source
+          else
+            echo "[*] Hook mode is Kprobes. Skipping manual hook patch."
+          fi
 
       - name: "OmniKSU: Patch Target Defconfig"
         run: |
-          python3 omniksu.py defconfig "kernel_source/arch/arm64/configs/${{ github.event.inputs.defconfig_name }}"
+          DEFCONFIG_REL="${{ github.event.inputs.defconfig_name }}"
+          DEFCONFIG_PATH="kernel_source/arch/arm64/configs/$DEFCONFIG_REL"
+          if [ ! -f "$DEFCONFIG_PATH" ]; then
+            DEFCONFIG_PATH="kernel_source/arch/arm/configs/$DEFCONFIG_REL"
+          fi
+          echo "[*] Targeting defconfig at: $DEFCONFIG_PATH"
+
+          if [ "${{ github.event.inputs.hook_mode }}" = "kprobes" ]; then
+            python3 omniksu.py defconfig "$DEFCONFIG_PATH" --no-manual-hook
+          else
+            python3 omniksu.py defconfig "$DEFCONFIG_PATH"
+          fi
 
       - name: Compile Kernel
         run: |
@@ -104,11 +147,19 @@ jobs:
           cd kernel_source
           if [ "$IS_CLANG" = "1" ]; then
             make O=../out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- "${{ github.event.inputs.defconfig_name }}"
-            python3 ../omniksu.py defconfig ../out/.config
+            if [ "${{ github.event.inputs.hook_mode }}" = "kprobes" ]; then
+              python3 ../omniksu.py defconfig ../out/.config --no-manual-hook
+            else
+              python3 ../omniksu.py defconfig ../out/.config
+            fi
             make O=../out HOSTCFLAGS="-fcommon" HOSTCXXFLAGS="-fcommon" ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc --all)
           else
             make O=../out ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- "${{ github.event.inputs.defconfig_name }}"
-            python3 ../omniksu.py defconfig ../out/.config
+            if [ "${{ github.event.inputs.hook_mode }}" = "kprobes" ]; then
+              python3 ../omniksu.py defconfig ../out/.config --no-manual-hook
+            else
+              python3 ../omniksu.py defconfig ../out/.config
+            fi
             make O=../out HOSTCFLAGS="-fcommon" HOSTCXXFLAGS="-fcommon" ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- -j$(nproc --all)
           fi
 
@@ -124,11 +175,12 @@ jobs:
           fi
 
           echo "Found kernel image at: $IMG_PATH"
-          python3 omniksu.py package "$IMG_PATH" --device "${{ github.event.inputs.device_codename }}" --out "OmniKSU-${{ github.event.inputs.device_codename }}-Flashable.zip"
+          ZIP_NAME="OmniKSU-${{ matrix.engine }}-${{ github.event.inputs.device_codename }}-Flashable.zip"
+          python3 omniksu.py package "$IMG_PATH" --device "${{ github.event.inputs.device_codename }}" --out "$ZIP_NAME"
 
       - name: Upload Flashable Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OmniKSU-${{ github.event.inputs.device_codename }}-Flashable
-          path: OmniKSU-${{ github.event.inputs.device_codename }}-Flashable.zip
+          name: OmniKSU-${{ matrix.engine }}-${{ github.event.inputs.device_codename }}-Flashable
+          path: OmniKSU-${{ matrix.engine }}-${{ github.event.inputs.device_codename }}-Flashable.zip
           retention-days: 14

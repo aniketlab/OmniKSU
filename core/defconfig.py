@@ -20,6 +20,12 @@ class DefconfigPatcher:
         "CONFIG_KSU_MANUAL_HOOK": "y",
     }
 
+    KPROBES_FLAGS = {
+        "CONFIG_KPROBES": "y",
+        "CONFIG_HAVE_KPROBES": "y",
+        "CONFIG_KPROBE_EVENTS": "y",
+    }
+
     SAFETY_FLAGS = {
         "CONFIG_MODULE_SIG_FORCE": "n",   # Prevents stock WiFi/Audio module signature panics
         "CONFIG_MODULE_FORCE_LOAD": "y",  # Allows loading stock OEM modules without vermagic rejection
@@ -39,6 +45,8 @@ class DefconfigPatcher:
         target_flags = dict(self.MANDATORY_FLAGS)
         if manual_hook:
             target_flags.update(self.MANUAL_HOOK_FLAGS)
+        else:
+            target_flags.update(self.KPROBES_FLAGS)
         target_flags.update(self.SAFETY_FLAGS)
 
         target_flags["CONFIG_KSU_DEBUG"] = "y" if enable_debug else "n"

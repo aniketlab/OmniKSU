@@ -27,6 +27,8 @@ def build():
         "--noconsole",
         "--onefile",
         "--name", "OmniKSU",
+        "--collect-all", "webview",
+        "--collect-all", "core",
         "--add-data", add_ui,
         "--add-data", add_config,
         "--clean",

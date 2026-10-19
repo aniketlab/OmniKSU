@@ -25,10 +25,9 @@
       <svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z"/></svg>
       <span>New Build</span>
     </div>
-    <div class="nav" data-nav="devices">
+    <div class="nav" data-nav="presets">
       <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
-      <span>Devices</span>
-      <em id="dev-count">2</em>
+      <span>Presets</span>
     </div>
     <div class="nav" data-nav="artifacts">
       <svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>
@@ -99,24 +98,73 @@
     <div class="grid">
       <!-- Left Column (Configuration) -->
       <div>
-        <!-- Step 1: Target Device -->
+        <!-- Step 1: Device & Kernel Source -->
         <section class="pn">
-          <div class="ph"><i>1</i>Target Device</div>
+          <div class="ph">
+            <span><i>1</i>Device &amp; Kernel Source</span>
+            <span class="row">
+              <button type="button" class="btn-xs" id="btn-detect-phone" title="Detect attached phone via USB ADB">⚡ Auto-Detect Phone</button>
+              <button type="button" class="btn-xs" id="btn-fill-example" title="Fill with verified test configuration">Example</button>
+            </span>
+          </div>
           <div class="pb">
-            <label>Device Profile</label>
-            <select id="dev">
-              <option value="whyred">Xiaomi Redmi Note 5 Pro (whyred — Kernel 4.4)</option>
-              <option value="enchilada">OnePlus 6 (enchilada — Kernel 4.9)</option>
-              <option value="custom">Custom Device / Custom Kernel Source</option>
-            </select>
+            <!-- Search / Quick Finder Row -->
+            <label>Search Device Sources or Codename</label>
+            <div class="row">
+              <input type="text" id="dev-search-input" placeholder="e.g. Redmi Note 5 Pro, whyred, mido, Poco F1, guacamole">
+              <button type="button" class="btn" id="btn-search-sources">Find Sources</button>
+            </div>
 
-            <div class="cust" id="cust">
-              <label>Kernel Git Repo URL</label>
-              <input type="text" id="cust-repo" placeholder="https://github.com/user/kernel_repo">
-              <label>Branch Name</label>
-              <input type="text" id="cust-branch" placeholder="main">
-              <label>Defconfig Name</label>
-              <input type="text" id="cust-defconfig" placeholder="device_defconfig">
+            <!-- Search Results Dropdown/Box (Collapsible) -->
+            <div id="search-results-box" class="search-box hide">
+              <div class="sb-header">Found GitHub Kernel Repositories:</div>
+              <div id="search-results-list"></div>
+            </div>
+
+            <div class="row" style="margin-top: 8px;">
+              <div style="flex: 1.2;">
+                <label>Device Codename</label>
+                <input type="text" id="dev-codename" placeholder="e.g. whyred, mido, sweet, beryllium">
+              </div>
+              <div style="flex: 1.2;">
+                <label>Toolchain Preset</label>
+                <select id="toolchain-preset">
+                  <option value="gcc-4.9">AOSP GCC 4.9 (Legacy 3.18 / 4.4 / 4.9)</option>
+                  <option value="proton-clang">Proton Clang (Kernel 4.14 / 4.19 / 5.4+)</option>
+                </select>
+              </div>
+            </div>
+
+            <label>Kernel Source Git Repository URL</label>
+            <div class="row">
+              <input type="text" id="kernel-repo" placeholder="https://github.com/username/android_kernel_device">
+              <button type="button" class="btn" id="btn-scan-repo" title="Auto-scan repository branches, defconfigs & kernel version">Scan Repo</button>
+            </div>
+
+            <!-- Live Compatibility Card (Populates after scan or search) -->
+            <div id="compat-card" class="compat-card hide">
+              <div class="cc-header">
+                <span class="cc-badge" id="cc-ver">Linux 4.4.153</span>
+                <span class="cc-badge" id="cc-os">Android 9 (Pie)</span>
+                <span class="cc-badge cc-engine" id="cc-engine">BakaSU</span>
+              </div>
+              <div class="cc-desc" id="cc-rationale">Kernel 4.4 detected. BakaSU atomic pointer swap selected to prevent SELinux boot deadlocks.</div>
+              <div class="cc-notice" id="cc-notice">⚠️ Ensure your device is running the matching Android version before flashing.</div>
+            </div>
+
+            <div class="row" style="margin-top: 8px;">
+              <div style="flex: 1;">
+                <label>Branch Name</label>
+                <div id="branch-container">
+                  <input type="text" id="kernel-branch" placeholder="e.g. main, pie, master">
+                </div>
+              </div>
+              <div style="flex: 1;">
+                <label>Defconfig File Name</label>
+                <div id="defconfig-container">
+                  <input type="text" id="kernel-defconfig" placeholder="e.g. whyred-perf_defconfig">
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -128,7 +176,8 @@
             <label>Engine</label>
             <div class="seg" id="eng">
               <button class="on" data-val="bakasu">BakaSU <small>Recommended 4.4 / 4.9</small></button>
-              <button data-val="kernelsu-next">KernelSU-Next</button>
+              <button data-val="kernelsu-next">KernelSU-Next <small>Recommended 4.14+</small></button>
+              <button data-val="both">Both <small>Dual Flashable Zips</small></button>
             </div>
 
             <label>Hook Mode</label>

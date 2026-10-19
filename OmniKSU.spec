@@ -1,12 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/ui', 'ui'), ('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/config', 'config')]
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('webview')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('core')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/gui.py'],
     pathex=[],
-    binaries=[],
-    datas=[('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/ui', 'ui'), ('C:/Users/sharm/Downloads/Programs/KernelSU/OmniKSU/config', 'config')],
-    hiddenimports=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

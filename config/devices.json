@@ -32,6 +32,22 @@
       "image_target": "arch/arm64/boot/Image.gz-dtb",
       "anykernel_device_names": ["enchilada", "OnePlus6"],
       "tested_stock_os": "OxygenOS 11.1.2.2 (Android 11)"
+    },
+    "hotdogb": {
+      "name": "OnePlus 7T",
+      "brand": "OnePlus",
+      "platform": "sm8150",
+      "arch": "arm64",
+      "kernel_version_family": "4.14",
+      "repo_url": "https://github.com/PixelExperience-Devices/kernel_oneplus_sm8150",
+      "branch": "thirteen",
+      "defconfig": "vendor/sm8150-perf_defconfig",
+      "root_engine": "kernelsu-next",
+      "hook_mode": "kprobes",
+      "preferred_toolchain": "proton-clang",
+      "image_target": "arch/arm64/boot/Image.gz-dtb",
+      "anykernel_device_names": ["hotdogb", "hotdog", "OnePlus7T"],
+      "tested_stock_os": "OxygenOS 11 / 12 (Android 11 / 12)"
     }
   }
 }

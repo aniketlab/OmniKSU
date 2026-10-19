@@ -23,6 +23,7 @@ from core.defconfig import DefconfigPatcher
 from core.integrator import RootIntegrator
 from core.toolchain import ToolchainManager
 from core.packager import AnyKernelPackager
+from core.inspector import RemoteKernelInspector
 
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     BASE_DIR = Path(sys._MEIPASS)
@@ -39,48 +40,48 @@ class OmniKSUApi:
     """
 
     def __init__(self, window_ref=None):
-        self.window = window_ref
+        self._window = window_ref
         self.active_build = False
 
     def set_window(self, window):
-        self.window = window
+        self._window = window
 
     def log(self, tag: str, message: str):
         """Pushes a log message into the UI console."""
-        if self.window:
+        if self._window:
             safe_msg = json.dumps(message)
-            self.window.evaluate_js(f"log('{tag}', {safe_msg});")
+            self._window.evaluate_js(f"log('{tag}', {safe_msg});")
 
     def set_progress(self, percent: int, stage_idx: int = -1):
         """Updates UI progress bar and pipeline stepper."""
-        if self.window:
-            self.window.evaluate_js(f"prog({percent});")
+        if self._window:
+            self._window.evaluate_js(f"prog({percent});")
             if stage_idx >= 0:
-                self.window.evaluate_js(f"pipe({stage_idx});")
+                self._window.evaluate_js(f"pipe({stage_idx});")
 
     def set_status(self, text: str, chip_class: str = ""):
         """Updates UI status pill."""
-        if self.window:
-            self.window.evaluate_js(f"setSt('{text}', '{chip_class}');")
+        if self._window:
+            self._window.evaluate_js(f"setSt('{text}', '{chip_class}');")
 
     # --- Window Controls ---
     def close_window(self):
-        if self.window:
-            self.window.destroy()
+        if self._window:
+            self._window.destroy()
 
     def minimize_window(self):
-        if self.window:
-            self.window.minimize()
+        if self._window:
+            self._window.minimize()
 
     def toggle_maximize(self):
-        if self.window:
+        if self._window:
             # Toggle between normal and maximized
             pass
 
     def select_folder(self) -> str:
         """Opens native Windows folder selection dialog."""
-        if self.window:
-            result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        if self._window:
+            result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
             if result and len(result) > 0:
                 return result[0]
         return ""
@@ -95,6 +96,18 @@ class OmniKSUApi:
         except Exception:
             pass
         return {"available": False, "distro": "Not Found"}
+
+    def inspect_repo(self, repo_url: str, branch: str = "") -> dict:
+        """Inspects a GitHub repository to auto-detect kernel version, branches, defconfigs, and engine."""
+        return RemoteKernelInspector.inspect_github_repo(repo_url, branch or None)
+
+    def search_sources(self, query: str) -> list:
+        """Searches GitHub for candidate kernel sources matching a device or codename."""
+        return RemoteKernelInspector.search_github_kernels(query)
+
+    def detect_connected_phone(self) -> dict:
+        """Reads attached Android device properties over ADB."""
+        return RemoteKernelInspector.detect_connected_phone()
 
     # --- Cloud Build Pipeline (GitHub Actions REST API) ---
     def start_cloud_build(self, payload: dict) -> dict:
@@ -131,17 +144,18 @@ class OmniKSUApi:
         }
 
         # 1. Trigger Dispatch
-        workflow_id = "build_whyred.yml" if device == "whyred" else "omniksu_generic_builder.yml"
+        workflow_id = "omniksu_generic_builder.yml"
         dispatch_url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/dispatches"
 
         inputs = {
-            "root_engine": engine
+            "device_codename": device,
+            "kernel_repo": payload.get("kernel_repo") or payload.get("custom_repo") or "https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git",
+            "kernel_branch": payload.get("kernel_branch") or payload.get("custom_branch") or "tulip-p-oss",
+            "defconfig_name": payload.get("defconfig_name") or payload.get("custom_defconfig") or "whyred-perf_defconfig",
+            "root_engine": engine,
+            "hook_mode": payload.get("hook", "manual"),
+            "toolchain_choice": payload.get("toolchain_choice") or "gcc-4.9"
         }
-        if workflow_id == "omniksu_generic_builder.yml":
-            inputs["device_codename"] = device
-            inputs["kernel_repo"] = payload.get("custom_repo") or "https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git"
-            inputs["kernel_branch"] = payload.get("custom_branch") or "whyred-p-oss"
-            inputs["defconfig_name"] = payload.get("custom_defconfig") or "whyred-perf_defconfig"
 
         self.log("INFO", f"Sending dispatch request to GitHub API ({workflow_id})...")
         self.set_progress(15, 0)
@@ -281,15 +295,10 @@ def main():
         y=pos_y,
         min_size=(940, 560),
         js_api=api,
-        hidden=True,
+        hidden=False,
         background_color="#F4F6ED"
     )
     api.set_window(window)
-
-    def on_loaded():
-        window.show()
-
-    window.events.loaded += on_loaded
 
     # debug=True enables Right-Click -> Inspect Element (F12 Edge Chromium DevTools)
     # and allows F5 / Ctrl+R instant reloading of HTML/CSS/JS without recompiling!
