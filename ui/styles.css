@@ -419,6 +419,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 14px 0;
   font-size: 12.5px;
@@ -446,38 +447,43 @@ h1 {
 }
 
 .btn-autodetect {
-  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 60%, #388e3c 100%);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  height: 28px;
+  padding: 0 12px;
+  background: var(--sage-l);
+  color: var(--olive);
+  border: 1px solid var(--bd);
   border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 700;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: normal;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  box-shadow: 0 2px 7px rgba(46, 125, 50, 0.35);
-  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
   flex-shrink: 0;
-  line-height: 1;
+  white-space: nowrap;
 }
 .btn-autodetect:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.45);
-  background: linear-gradient(135deg, #2e7d32 0%, #388e3c 60%, #43a047 100%);
-  border-color: rgba(255, 255, 255, 0.4);
+  background: var(--olive);
+  color: var(--lime);
+  border-color: var(--olive);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
 }
 .btn-autodetect:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+  transform: translateY(1px);
+  box-shadow: none;
 }
 .btn-autodetect svg {
-  width: 12px;
-  height: 12px;
-  stroke: #ffffff;
-  fill: #ffeb3b;
-  stroke-width: 1.6;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  transition: stroke 0.15s ease;
 }
 
 .search-box {
@@ -708,28 +714,57 @@ input:focus, select:focus {
 
 .row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
 }
-.row > * {
+
+.pb .row {
+  width: 100%;
+  max-width: 100%;
+}
+
+.row > input[type=text],
+.row > input[type=password],
+.row > select {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 0;
+  box-sizing: border-box;
+}
+
+.row > .btn,
+.row > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.row > div {
   min-width: 0;
 }
+
 .btn {
   height: 32px;
-  padding: 0 13px;
+  padding: 0 14px;
   background: var(--btn-grad);
   border: 1px solid var(--bd-input);
   border-radius: 7px;
   font: inherit;
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--tx);
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
   transition: all .15s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  line-height: normal;
 }
 .btn:hover {
   background: var(--btn-hover);
@@ -968,7 +1003,7 @@ input[type=range] {
 /* ==========================================================================
    Responsive Adaptations for Small Desktop Screens & Window Resizing
    ========================================================================== */
-@media (max-width: 1080px) {
+@media (max-width: 1140px) {
   .grid {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -976,47 +1011,26 @@ input[type=range] {
   .kv {
     grid-template-columns: repeat(2, 1fr);
   }
-  .console {
-    height: 240px;
+  #log {
+    height: 220px;
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .main {
     padding: 12px 14px 16px;
   }
   .kv {
     grid-template-columns: 1fr;
   }
-  .row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
   .ph {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
-  .ph > span.row {
-    flex-direction: row;
-    width: 100%;
-    justify-content: flex-end;
-  }
   header {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
-  }
-  .pb .seg {
-    flex-direction: column;
-  }
-  .pb .seg button {
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 8px 12px;
-  }
-  .pb .seg small {
-    margin-top: 0;
   }
 }
