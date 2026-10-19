@@ -445,6 +445,41 @@ h1 {
   border-color: var(--olive);
 }
 
+.btn-autodetect {
+  background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 60%, #388e3c 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 7px rgba(46, 125, 50, 0.35);
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.btn-autodetect:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.45);
+  background: linear-gradient(135deg, #2e7d32 0%, #388e3c 60%, #43a047 100%);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.btn-autodetect:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.25);
+}
+.btn-autodetect svg {
+  width: 12px;
+  height: 12px;
+  stroke: #ffffff;
+  fill: #ffeb3b;
+  stroke-width: 1.6;
+}
+
 .search-box {
   background: var(--card);
   border: 1px solid var(--bd);
@@ -649,6 +684,10 @@ select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
+  padding-right: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 input:focus, select:focus {
   border-color: var(--olive);
@@ -670,6 +709,9 @@ input:focus, select:focus {
 .row {
   display: flex;
   gap: 6px;
+}
+.row > * {
+  min-width: 0;
 }
 .btn {
   height: 32px;

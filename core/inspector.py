@@ -190,6 +190,10 @@ class RemoteKernelInspector:
         if not active_branch:
             active_branch = default_branch if default_branch in branches else (branches[0] if branches else "main")
 
+        # Ensure active_branch is unconditionally present in the branches list
+        if active_branch and active_branch not in branches:
+            branches.insert(0, active_branch)
+
         # 3. Fetch top-level Makefile to extract Kernel Version
         raw_makefile_url = f"https://raw.githubusercontent.com/{owner}/{repo_name}/{active_branch}/Makefile"
         version_info = {

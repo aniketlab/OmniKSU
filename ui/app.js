@@ -98,30 +98,24 @@ $('#toolchain-preset').onchange = () => {
   sync();
 };
 
-// Fill Example Button
-$('#btn-fill-example').onclick = () => {
-  $('#dev-codename').value = 'whyred';
-  $('#toolchain-preset').value = 'gcc-4.9';
-  $('#kernel-repo').value = 'https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git';
-  $('#dev-search-input').value = 'whyred';
-  scan_repo('https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git', 'tulip-p-oss');
-  sync();
-  log('OK', 'Loaded verified test configuration (Redmi Note 5 Pro - Whyred).');
-};
-
 // --- Smart Repo Inspector & Auto-Configuration ---
-function populate_dropdowns(info, targetDefconfig = '') {
+function populate_dropdowns(info, targetBranch = '', targetDefconfig = '') {
   // 1. Branches dropdown
   if (info.branches && info.branches.length > 0) {
     const sel = document.createElement('select');
     sel.id = 'kernel-branch';
+    const desiredBranch = targetBranch || info.active_branch || '';
+    if (desiredBranch && !info.branches.includes(desiredBranch)) {
+      info.branches.unshift(desiredBranch);
+    }
     info.branches.forEach(b => {
       const opt = document.createElement('option');
       opt.value = b;
       opt.textContent = b;
-      if (b === info.active_branch) opt.selected = true;
+      if (b === desiredBranch) opt.selected = true;
       sel.appendChild(opt);
     });
+    if (desiredBranch) sel.value = desiredBranch;
     sel.onchange = () => {
       scan_repo($('#kernel-repo').value.trim(), sel.value);
     };
@@ -135,6 +129,13 @@ function populate_dropdowns(info, targetDefconfig = '') {
     sel.id = 'kernel-defconfig';
     const codename = ($('#dev-codename').value || '').toLowerCase().trim();
     let bestMatch = '';
+
+    if (targetDefconfig) {
+      const hasDefconfig = info.defconfigs.some(c => c === targetDefconfig || c.endsWith('/' + targetDefconfig));
+      if (!hasDefconfig) {
+        info.defconfigs.unshift(targetDefconfig);
+      }
+    }
 
     info.defconfigs.forEach(cfg => {
       const opt = document.createElement('option');
@@ -242,7 +243,7 @@ async function scan_repo(url, branch = '', targetDefconfig = '') {
     try {
       const res = await window.pywebview.api.inspect_repo(url, branch);
       if (res && res.ok) {
-        populate_dropdowns(res, targetDefconfig);
+        populate_dropdowns(res, branch, targetDefconfig);
         show_compat_card(res);
         log('OK', `Kernel ${res.version_info.full_version} analyzed! Found ${res.defconfigs.length} defconfigs and ${res.branches.length} branches.`);
         setSt('Ready', '');
