@@ -10,7 +10,7 @@
       "repo_url": "https://github.com/MiCode/Xiaomi_Kernel_OpenSource",
       "branch": "tulip-p-oss",
       "defconfig": "whyred-perf_defconfig",
-      "root_engine": "kernelsu-next",
+      "root_engine": "bakasu",
       "hook_mode": "manual",
       "preferred_toolchain": "gcc-4.9",
       "image_target": "arch/arm64/boot/Image.gz-dtb",

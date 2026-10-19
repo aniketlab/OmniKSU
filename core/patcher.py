@@ -365,6 +365,42 @@ class SmartPatcher:
 
         return True, "kernel/reboot.c successfully patched."
 
+    def patch_module_c(self) -> Tuple[bool, str]:
+        """
+        Patches kernel/module.c to bypass strict vermagic and symbol CRC checks
+        (module_layout mismatch) for stock OEM prebuilt vendor modules (e.g. WiFi).
+        """
+        file_path = self.kernel_dir / "module.c"
+        if not file_path.is_file():
+            return False, f"File not found: {file_path}"
+
+        if self.is_file_already_patched(file_path):
+            return True, "kernel/module.c is already patched."
+
+        self.backup_file(file_path)
+
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        # 1. Bypass same_magic check so any vermagic differences are tolerated
+        same_magic_pattern = r"(static\s+inline\s+int\s+same_magic\s*\([^{]+\{\s*)"
+        match_sm = re.search(same_magic_pattern, content)
+        if match_sm:
+            pos = match_sm.end()
+            content = content[:pos] + "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n\treturn 1;\n#endif\n" + content[pos:]
+
+        # 2. Bypass check_version check so module_layout and symbol CRC mismatches are ignored
+        check_ver_pattern = r"(static\s+int\s+check_version\s*\([^{]+\{\s*)"
+        match_cv = re.search(check_ver_pattern, content)
+        if match_cv:
+            pos = match_cv.end()
+            content = content[:pos] + "\n#ifdef CONFIG_KSU_MANUAL_HOOK\n\treturn 1;\n#endif\n" + content[pos:]
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        return True, "kernel/module.c successfully patched (bypassed vermagic & CRC checks)."
+
     def fix_dtc_yylloc(self) -> List[str]:
         """
         Fixes multiple definition of 'yylloc' on GCC 10+ host compilers.
@@ -603,6 +639,7 @@ class SmartPatcher:
         results["fs/stat.c"] = self.patch_stat_c()
         results["fs/open.c"] = self.patch_open_c()
         results["kernel/reboot.c"] = self.patch_reboot_c()
+        results["kernel/module.c"] = self.patch_module_c()
 
         # Fix KernelSU legacy compatibility if integrated
         compat_fixed = self.patch_kernelsu_compat()

@@ -23,7 +23,7 @@ class DefconfigPatcher:
     SAFETY_FLAGS = {
         "CONFIG_MODULE_SIG_FORCE": "n",   # Prevents stock WiFi/Audio module signature panics
         "CONFIG_MODULE_FORCE_LOAD": "y",  # Allows loading stock OEM modules without vermagic rejection
-        "CONFIG_MODVERSIONS": "n",        # Disables strict CRC checking to fix 'disagrees about version of symbol module_layout'
+        "CONFIG_MODVERSIONS": "y",        # Preserves stock vermagic format; bypass is handled in module.c
     }
 
     def __init__(self, defconfig_path: Path):
