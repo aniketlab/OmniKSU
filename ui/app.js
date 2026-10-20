@@ -851,6 +851,11 @@ async function on_build_start() {
   prog(0);
   pipe(0);
 
+  // Cleanly hide previous artifact delivery card on starting a new build
+  currentArtifact = null;
+  const oldCard = $('#artifact-delivery-card');
+  if (oldCard) oldCard.classList.add('hide');
+
   clock = setInterval(() => {
     $('#el').textContent = 'Elapsed ' + fmt();
   }, 1000);
