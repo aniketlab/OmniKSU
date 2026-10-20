@@ -166,7 +166,22 @@ function show_compat_card(info) {
   $('#cc-ver').textContent = 'Linux ' + ver;
   $('#cc-os').textContent = info.android_target || 'Android 8.0 - 12.0';
   $('#cc-engine').textContent = (info.recommended_engine || 'BakaSU').toUpperCase();
-  $('#cc-rationale').textContent = info.rationale || 'Kernel source analyzed successfully.';
+  $('#cc-rationale').textContent = info.rationale || 'Kernel source configuration verified.';
+
+  const statusEl = $('#cc-status');
+  const iconEl = $('#cc-status-icon');
+  const noticeEl = $('#cc-notice');
+
+  function setStatus(type, iconSvg, html) {
+    if (statusEl) statusEl.className = 'cc-status ' + type;
+    if (iconEl) iconEl.innerHTML = iconSvg;
+    if (noticeEl) noticeEl.innerHTML = html;
+  }
+
+  const svgCheck = '<path d="M20 6L9 17l-5-5"/>';
+  const svgWarn = '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>';
+  const svgErr = '<circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/>';
+  const svgInfo = '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>';
 
   // Safety hardware check against connected phone
   if (window.connectedDevice && window.connectedDevice.connected) {
@@ -179,29 +194,49 @@ function show_compat_card(info) {
       const isSameFamily = repoKernel.startsWith(dev.kernel_family);
 
       if (isExactFull || (isSameFamily && repoKernel === dev.kernel_full_version)) {
-        $('#cc-notice').innerHTML = `✅ <b>100% Hardware Match:</b> Kernel source Linux <b>${repoKernel}</b> matches your connected <b>${dev.model}</b> (running Linux ${dev.kernel_release})! Tested and safe for Stock ${dev.is_stock_rom ? (dev.miui_version || 'OEM') : 'ROM'}.`;
-        $('#cc-notice').style.borderColor = '#4caf50';
-        $('#cc-notice').style.color = '#2e7d32';
+        setStatus(
+          'status-ok',
+          svgCheck,
+          `Hardware Verified: Matches connected ${dev.model} (${dev.kernel_release} · Stock ${dev.is_stock_rom ? (dev.miui_version || 'ROM') : 'ROM'}).`
+        );
+
+
       } else if (isSameFamily) {
         // e.g. Phone is 4.4.153, Repo is 4.4.271
-        $('#cc-notice').innerHTML = `⚠️ <b>Kernel Sublevel Mismatch Warning:</b> Your phone is running Linux <b>${dev.kernel_release}</b>, but this repo is Linux <b>${repoKernel}</b>.<br>Flashing an upstreamed kernel on Stock ${dev.is_stock_rom ? (dev.miui_version || 'OEM') : 'ROM'} may break Wi-Fi driver loading or cause bootloops! Ensure you use a matching ${dev.kernel_family} official source.`;
-        $('#cc-notice').style.borderColor = '#ff9800';
-        $('#cc-notice').style.color = '#e65100';
+        setStatus(
+          'status-warn',
+          svgWarn,
+          `Sublevel Variance: Source is Linux ${repoKernel} while device runs ${dev.kernel_release}. Upstream kernels may cause OEM driver incompatibility on stock builds.`
+        );
+
+
       } else {
         // Critical Mismatch (e.g. 4.4 vs 4.19 / 5.4)
-        $('#cc-notice').innerHTML = `🛑 <b>Critical Mismatch:</b> Your connected phone runs Linux <b>${dev.kernel_release}</b>, but this repo is Linux <b>${repoKernel}</b>! Flashing this will cause a bootloop!`;
-        $('#cc-notice').style.borderColor = '#f44336';
-        $('#cc-notice').style.color = '#c62828';
+        setStatus(
+          'status-err',
+          svgErr,
+          `Architecture Mismatch: Source is Linux ${repoKernel} but connected device runs ${dev.kernel_release}. Incompatible kernel version.`
+        );
+
+
       }
     } else {
-      $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
-      $('#cc-notice').style.borderColor = '';
-      $('#cc-notice').style.color = '';
+      setStatus(
+        'status-info',
+        svgInfo,
+        `Target System: ${info.android_target || 'Compatible Android version'}. Verify kernel compatibility prior to flashing.`
+      );
+
+
     }
   } else {
-    $('#cc-notice').textContent = `⚠️ Target Device: Flash this ONLY on ${info.android_target || 'matching Android version'} to prevent boot issues!`;
-    $('#cc-notice').style.borderColor = '';
-    $('#cc-notice').style.color = '';
+    setStatus(
+      'status-info',
+      svgInfo,
+      `Target System: ${info.android_target || 'Compatible Android version'}. Verify kernel compatibility prior to flashing.`
+    );
+
+
   }
 
   // Auto-switch Engine button in UI

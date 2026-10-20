@@ -299,19 +299,19 @@ class RemoteKernelInspector:
             rec_hook = "manual"
             rec_toolchain = "gcc-4.9"
             android_target = "Android 8.0 - 9.0 (Oreo / Pie)"
-            rationale = f"Linux {version_info['family']} kernel detected. BakaSU with atomic pointer swap is required to prevent stop_machine SELinux boot deadlocks."
+            rationale = f"Linux {version_info['family']} legacy architecture. Configured with BakaSU for stable stock ROM root access."
         elif v == 4 and p in (14, 19):
             rec_engine = "kernelsu-next"
             rec_hook = "kprobes"
             rec_toolchain = "proton-clang"
             android_target = "Android 10.0 - 12.0 (Q / R / S)"
-            rationale = f"Linux {version_info['family']} kernel detected. KernelSU-Next with Kprobes fully supported; dual builds (Both) also available."
+            rationale = f"Linux {version_info['family']} architecture. Configured with KernelSU-Next via Kprobes dynamic hooking."
         elif v and v >= 5:
             rec_engine = "kernelsu-next"
             rec_hook = "kprobes"
             rec_toolchain = "proton-clang"
             android_target = "Android 12.0 - 14.0 (GKI / Modern)"
-            rationale = f"Linux {version_info['family']} modern GKI kernel detected. KernelSU-Next with Kprobes fully supported."
+            rationale = f"Linux {version_info['family']} modern GKI architecture. Configured with KernelSU-Next via Kprobes."
 
         return {
             "ok": True,
