@@ -228,9 +228,15 @@ class OmniKSUApi:
                         self.log("INFO", "Initiating automatic artifact download & smart verification...")
                         out_dir_str = payload.get("out_dir") or "C:\\OmniKSU\\output"
                         self._download_and_verify_artifact(repo=repo, run_id=run_id, token=token, out_dir=out_dir_str)
+                        self.active_build = False
+                        if self._window:
+                            self._window.evaluate_js("on_build_completed(true);")
                     else:
+                        self.active_build = False
                         self.set_status("Failed", "err")
                         self.log("ERR", f"Cloud build finished with status: {conclusion}")
+                        if self._window:
+                            self._window.evaluate_js("on_build_completed(false);")
                     break
 
         except Exception as e:
@@ -273,6 +279,9 @@ class OmniKSUApi:
         self.set_progress(100, 4)
         self.set_status("Success", "")
         self.log("OK", f"AnyKernel3 Flashable ZIP ready in {out_dir}")
+        self.active_build = False
+        if self._window:
+            self._window.evaluate_js("on_build_completed(true);")
 
     def _download_and_verify_artifact(self, repo: str, run_id: int, token: str, out_dir: str):
         headers = {

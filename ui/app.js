@@ -525,12 +525,51 @@ function prog(percent) {
 }
 
 function pipe(activeStage, allDone = false) {
-  $$('#pipe .stg').forEach((s, i) => {
-    s.className = 'stg' + (allDone || i < activeStage ? ' done' : i === activeStage ? ' act' : '');
+  const steps = $$('#pipe .stg');
+  const count = steps.length;
+
+  steps.forEach((s, i) => {
+    const isDone = allDone || i < activeStage;
+    const isAct = !allDone && i === activeStage;
+    s.className = 'stg' + (isDone ? ' done' : isAct ? ' act' : '');
+
+    const numEl = s.querySelector('.stg-num');
+    if (numEl) {
+      numEl.textContent = isDone ? '✓' : (i + 1);
+    }
   });
-  $$('#pipe .stg .stg-num, #pipe .stg u').forEach((u, i) => {
-    u.textContent = (allDone || i < activeStage) ? '✓' : (i + 1);
-  });
+
+  const progBar = $('#pipe-progress');
+  if (progBar && count > 1) {
+    let p = 0;
+    if (allDone || activeStage >= count - 1) {
+      p = 100;
+    } else if (activeStage > 0) {
+      p = (activeStage / (count - 1)) * 100;
+    }
+    progBar.style.width = p + '%';
+  }
+}
+
+function on_build_completed(success = true) {
+  if (clock) {
+    clearInterval(clock);
+    clock = null;
+  }
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  $('#go').disabled = false;
+  $('#stop').disabled = true;
+
+  if (success) {
+    setSt('Success', '');
+    pipe(4, true);
+    prog(100);
+  } else {
+    setSt('Failed', 'err');
+  }
 }
 
 let currentArtifact = null;
@@ -538,6 +577,7 @@ let currentArtifact = null;
 function show_artifact_card(data) {
   if (!data) return;
   currentArtifact = data;
+  on_build_completed(true);
   const card = $('#artifact-delivery-card');
   if (!card) return;
 
@@ -684,9 +724,15 @@ async function on_build_start() {
 }
 
 function on_build_stop() {
-  clearInterval(timer);
-  clearInterval(clock);
-  log('ERR', 'Build cancelled by user');
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (clock) {
+    clearInterval(clock);
+    clock = null;
+  }
+  log('WARN', 'Build cancelled by user');
   setSt('Cancelled', 'err');
   $('#go').disabled = false;
   $('#stop').disabled = true;

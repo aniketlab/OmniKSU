@@ -250,12 +250,32 @@
         <!-- Pipeline Stepper -->
         <section class="pn">
           <div class="ph">Build Pipeline</div>
-          <div class="pipe" id="pipe">
-            <div class="stg"><u class="stg-num">1</u><span class="stg-label">Detect</span></div>
-            <div class="stg"><u class="stg-num">2</u><span class="stg-label">Clone</span></div>
-            <div class="stg"><u class="stg-num">3</u><span class="stg-label">Patch</span></div>
-            <div class="stg"><u class="stg-num">4</u><span class="stg-label">Compile</span></div>
-            <div class="stg"><u class="stg-num">5</u><span class="stg-label">Package</span></div>
+          <div class="pipe-container">
+            <div class="pipe-track">
+              <div class="pipe-progress" id="pipe-progress"></div>
+            </div>
+            <div class="pipe" id="pipe">
+              <div class="stg act" data-step="0">
+                <div class="stg-circle"><span class="stg-num">1</span></div>
+                <span class="stg-label">Detect</span>
+              </div>
+              <div class="stg" data-step="1">
+                <div class="stg-circle"><span class="stg-num">2</span></div>
+                <span class="stg-label">Clone</span>
+              </div>
+              <div class="stg" data-step="2">
+                <div class="stg-circle"><span class="stg-num">3</span></div>
+                <span class="stg-label">Patch</span>
+              </div>
+              <div class="stg" data-step="3">
+                <div class="stg-circle"><span class="stg-num">4</span></div>
+                <span class="stg-label">Compile</span>
+              </div>
+              <div class="stg" data-step="4">
+                <div class="stg-circle"><span class="stg-num">5</span></div>
+                <span class="stg-label">Package</span>
+              </div>
+            </div>
           </div>
         </section>
 
