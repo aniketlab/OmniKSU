@@ -630,6 +630,34 @@ class SmartPatcher:
 
         return fixed
 
+    def patch_dts_camera_quirks(self) -> List[str]:
+        """
+        Detects and fixes vendor GPL DTS bugs where camera sensor includes
+        were deliberately commented out by OEMs (e.g. Xiaomi sdm636-mtp_e7s.dtsi).
+        """
+        fixed = []
+        dts_search_dirs = [
+            self.kernel_root / "arch" / "arm" / "boot" / "dts",
+            self.kernel_root / "arch" / "arm64" / "boot" / "dts",
+        ]
+        pattern = re.compile(r'/\*#include\s+["<]([^">]*camera[^">]*\.dtsi)[">]\*/')
+
+        for base_dir in dts_search_dirs:
+            if not base_dir.is_dir():
+                continue
+            for dtsi_file in base_dir.rglob("*.dtsi"):
+                try:
+                    with open(dtsi_file, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    if pattern.search(content):
+                        new_content = pattern.sub(r'#include "\1"', content)
+                        with open(dtsi_file, "w", encoding="utf-8") as f:
+                            f.write(new_content)
+                        fixed.append(dtsi_file.name)
+                except Exception:
+                    continue
+        return fixed
+
     def apply_all_manual_hooks(self) -> Dict[str, Tuple[bool, str]]:
         """
         Executes all manual hook patches across the kernel tree and sanitizes Makefiles.
@@ -645,6 +673,11 @@ class SmartPatcher:
         compat_fixed = self.patch_kernelsu_compat()
         if compat_fixed:
             results["ksu_compat"] = (True, f"Fixed: {', '.join(compat_fixed)}")
+
+        # Fix vendor DTS camera sensor exclusions (e.g. Xiaomi commented includes)
+        dts_fixed = self.patch_dts_camera_quirks()
+        if dts_fixed:
+            results["dts_camera"] = (True, f"Uncommented camera sensor DTS in: {', '.join(dts_fixed)}")
 
         # Fix GCC 10+ host dtc yylloc issue
         dtc_fixed = self.fix_dtc_yylloc()
