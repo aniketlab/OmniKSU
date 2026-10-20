@@ -143,13 +143,39 @@ class OmniKSUApi:
 
         if not token:
             self.log("ERR", "GitHub Personal Access Token is required to trigger cloud builds.")
-            self.log("INFO", "Please enter a valid GitHub token (with 'repo' & 'workflow' scope) or run 'gh auth login'.")
+            self.log("INFO", "Please click '1-Click Generate Token' or paste your token in Step 3.")
             self.set_status("Missing Token", "err")
+            self.active_build = False
+            if self._window:
+                self._window.evaluate_js("on_build_completed(false);")
             return
+
+        # Smart Fork Check & Auto-Routing:
+        # Prevent 403 Forbidden on upstream aniketlab/OmniKSU for external users
+        try:
+            u_resp = requests.get("https://api.github.com/user", headers={"Authorization": f"token {token}", "User-Agent": "OmniKSU-Studio"}, timeout=8)
+            if u_resp.status_code == 200:
+                current_login = u_resp.json().get("login", "")
+                if current_login and current_login.lower() != "aniketlab" and repo.lower() == "aniketlab/omniksu":
+                    fork_candidate = f"{current_login}/OmniKSU"
+                    f_resp = requests.get(f"https://api.github.com/repos/{fork_candidate}", headers={"Authorization": f"token {token}", "User-Agent": "OmniKSU-Studio"}, timeout=8)
+                    if f_resp.status_code == 200:
+                        self.log("INFO", f"Redirected target repo to your personal fork: {fork_candidate}")
+                        repo = fork_candidate
+                    else:
+                        self.log("ERR", f"Workflow dispatch requires write access. Please click '1-Click Auto-Fork' in Step 3 to fork OmniKSU to @{current_login} first!")
+                        self.set_status("Fork Required", "err")
+                        self.active_build = False
+                        if self._window:
+                            self._window.evaluate_js("on_build_completed(false);")
+                        return
+        except Exception:
+            pass
 
         headers = {
             "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "OmniKSU-Studio"
         }
 
         # 1. Trigger Dispatch
@@ -174,6 +200,9 @@ class OmniKSUApi:
             if resp.status_code not in (204, 201, 200):
                 self.log("ERR", f"GitHub API rejected request ({resp.status_code}): {resp.text}")
                 self.set_status("Failed", "err")
+                self.active_build = False
+                if self._window:
+                    self._window.evaluate_js("on_build_completed(false);")
                 return
 
             self.log("OK", "Workflow successfully dispatched to GitHub Cloud Runner!")
@@ -200,6 +229,9 @@ class OmniKSUApi:
 
             if not run_id:
                 self.log("WARN", "Could not locate live run ID; please monitor on GitHub Actions tab.")
+                self.active_build = False
+                if self._window:
+                    self._window.evaluate_js("on_build_completed(false);")
                 return
 
             self.set_progress(50, 2)
@@ -242,6 +274,9 @@ class OmniKSUApi:
         except Exception as e:
             self.log("ERR", f"Network or execution error: {str(e)}")
             self.set_status("Error", "err")
+            self.active_build = False
+            if self._window:
+                self._window.evaluate_js("on_build_completed(false);")
 
     # --- Local Build Pipeline (WSL2 / Local Python) ---
     def start_local_build(self, payload: dict) -> dict:
@@ -438,6 +473,149 @@ class OmniKSUApi:
     def cancel_build(self):
         self.active_build = False
         self.log("WARN", "Build cancelled by user.")
+
+    def open_external_url(self, url: str) -> dict:
+        """Opens URL in user's default web browser."""
+        import webbrowser
+        try:
+            webbrowser.open(url)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def get_clipboard_text(self) -> str:
+        """Reads text content from system clipboard."""
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()
+            text = root.clipboard_get()
+            root.destroy()
+            if text:
+                return text.strip()
+        except Exception:
+            pass
+        try:
+            res = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard"], capture_output=True, text=True, timeout=3)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+        return ""
+
+    def detect_gh_cli(self) -> dict:
+        """Checks if local gh CLI is authenticated and returns user & token."""
+        try:
+            tok = subprocess.check_output(["gh", "auth", "token"], text=True, stderr=subprocess.DEVNULL, timeout=4).strip()
+            if tok:
+                user = subprocess.check_output(["gh", "api", "user", "--jq", ".login"], text=True, stderr=subprocess.DEVNULL, timeout=4).strip()
+                return {"available": True, "token": tok, "user": user}
+        except Exception:
+            pass
+        return {"available": False}
+
+    def validate_github_token(self, token: str) -> dict:
+        """Validates GitHub Personal Access Token, retrieves profile, and checks fork status."""
+        token = (token or "").strip()
+        if not token:
+            return {"ok": False, "error": "Token cannot be empty."}
+
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "OmniKSU-Studio"
+        }
+
+        try:
+            resp = requests.get("https://api.github.com/user", headers=headers, timeout=10)
+            if resp.status_code != 200:
+                return {"ok": False, "error": f"Authentication failed ({resp.status_code}). Invalid or expired token."}
+
+            user_data = resp.json()
+            login = user_data.get("login", "")
+            name = user_data.get("name") or login
+            avatar_url = user_data.get("avatar_url", "")
+            scopes = resp.headers.get("x-oauth-scopes", "")
+
+            is_owner = (login.lower() == "aniketlab")
+            has_fork = is_owner
+            fork_repo = "aniketlab/OmniKSU" if is_owner else f"{login}/OmniKSU"
+
+            if not is_owner:
+                repo_resp = requests.get(f"https://api.github.com/repos/{login}/OmniKSU", headers=headers, timeout=10)
+                if repo_resp.status_code == 200:
+                    has_fork = True
+                else:
+                    has_fork = False
+
+            return {
+                "ok": True,
+                "login": login,
+                "name": name,
+                "avatar_url": avatar_url,
+                "scopes": scopes,
+                "is_owner": is_owner,
+                "has_fork": has_fork,
+                "fork_repo": fork_repo
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"Network error during authentication: {str(e)}"}
+
+    def auto_fork_repo(self, token: str) -> dict:
+        """Automatically forks aniketlab/OmniKSU to the authenticated user's account and enables Actions."""
+        token = (token or "").strip()
+        if not token:
+            return {"ok": False, "error": "Token required to create fork."}
+
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "OmniKSU-Studio"
+        }
+
+        try:
+            u_resp = requests.get("https://api.github.com/user", headers=headers, timeout=10)
+            if u_resp.status_code != 200:
+                return {"ok": False, "error": "Invalid GitHub token."}
+            username = u_resp.json().get("login", "")
+
+            if username.lower() == "aniketlab":
+                return {"ok": True, "already_owner": True, "fork_repo": "aniketlab/OmniKSU", "message": "You are the repository owner."}
+
+            # Check if fork already exists
+            check_resp = requests.get(f"https://api.github.com/repos/{username}/OmniKSU", headers=headers, timeout=10)
+            if check_resp.status_code == 200:
+                return {"ok": True, "fork_repo": f"{username}/OmniKSU", "message": "Fork already exists on your account."}
+
+            # Request GitHub to create fork
+            fork_url = "https://api.github.com/repos/aniketlab/OmniKSU/forks"
+            f_resp = requests.post(fork_url, headers=headers, json={"default_branch_only": True}, timeout=15)
+            if f_resp.status_code not in (200, 202):
+                return {"ok": False, "error": f"GitHub rejected fork creation ({f_resp.status_code}): {f_resp.text}"}
+
+            # Wait for GitHub to provision the fork (up to 16 seconds)
+            fork_ready = False
+            for _ in range(8):
+                time.sleep(2)
+                r = requests.get(f"https://api.github.com/repos/{username}/OmniKSU", headers=headers, timeout=10)
+                if r.status_code == 200:
+                    fork_ready = True
+                    break
+
+            # Try to ensure GitHub Actions permissions are enabled
+            try:
+                perm_url = f"https://api.github.com/repos/{username}/OmniKSU/actions/permissions"
+                requests.put(perm_url, headers=headers, json={"enabled": True, "allowed_actions": "all"}, timeout=10)
+            except Exception:
+                pass
+
+            return {
+                "ok": True,
+                "fork_repo": f"{username}/OmniKSU",
+                "message": f"Successfully forked OmniKSU to {username}/OmniKSU with GitHub Actions enabled!"
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"Failed to fork repository: {str(e)}"}
 
 def main():
     if not HTML_FILE.is_file():

@@ -456,16 +456,218 @@ $$('.nav').forEach(n => {
   };
 });
 
-// Password visibility toggle & token persistence
-const savedTok = localStorage.getItem('omniksu_gh_token');
-if (savedTok && $('#tok') && !$('#tok').value) {
-  $('#tok').value = savedTok;
+// ==========================================================================
+// Smart GitHub Cloud Runner & Auto-Fork Hub
+// ==========================================================================
+async function verify_github_token(tok, silent = false) {
+  const token = (tok || ($('#tok') ? $('#tok').value : '') || '').trim();
+  if (!token) {
+    if (!silent) log('WARN', 'Please enter or paste your GitHub token.');
+    return;
+  }
+
+  const connectBtn = $('#btn-connect-token');
+  if (connectBtn) {
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Verifying…';
+  }
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.validate_github_token) {
+    try {
+      const res = await window.pywebview.api.validate_github_token(token);
+      if (res.ok) {
+        // Save token
+        localStorage.setItem('omniksu_gh_token', token);
+        if ($('#tok')) $('#tok').value = token;
+
+        // Update header pill
+        const ghBadge = $('#gh-badge');
+        if (ghBadge) {
+          ghBadge.classList.remove('hide');
+          $('#gh-badge-user').textContent = '@' + res.login;
+          if (res.avatar_url) $('#gh-badge-avatar').src = res.avatar_url;
+        }
+
+        // Update Hub Card
+        const hubCard = $('#gh-hub-card');
+        if (hubCard) {
+          hubCard.classList.remove('hide');
+          $('#gh-user-fullname').textContent = res.name;
+          $('#gh-user-handle').textContent = '@' + res.login;
+          if (res.avatar_url) $('#gh-user-avatar').src = res.avatar_url;
+          $('#gh-scopes-text').textContent = 'Permissions: ' + (res.scopes || 'repo, workflow (OK)');
+
+          // Update Fork State
+          const stateReady = $('#fork-status-ready');
+          const stateMissing = $('#fork-status-missing');
+          const stateOwner = $('#fork-status-owner');
+
+          stateReady.classList.add('hide');
+          stateMissing.classList.add('hide');
+          stateOwner.classList.add('hide');
+
+          if (res.is_owner) {
+            stateOwner.classList.remove('hide');
+            $('#target-repo').value = 'aniketlab/OmniKSU';
+          } else if (res.has_fork) {
+            stateReady.classList.remove('hide');
+            $('#fork-active-repo').textContent = res.fork_repo;
+            $('#target-repo').value = res.fork_repo;
+          } else {
+            stateMissing.classList.remove('hide');
+            // If fork missing, keep target-repo ready as what it will be
+            $('#target-repo').value = res.fork_repo;
+          }
+        }
+
+        if (!silent) {
+          log('OK', `GitHub Authenticated: @${res.login} (${res.name})`);
+          if (res.is_owner) {
+            log('INFO', 'Target Repo: aniketlab/OmniKSU (Repository Owner)');
+          } else if (res.has_fork) {
+            log('OK', `Fork Active: ${res.fork_repo} — Cloud Actions ready to build!`);
+          } else {
+            log('WARN', `Fork required: Click '1-Click Auto-Fork OmniKSU' to enable cloud actions on your account.`);
+          }
+        }
+      } else {
+        if (!silent) log('ERR', res.error || 'GitHub token validation failed.');
+      }
+    } catch (e) {
+      if (!silent) log('ERR', 'Authentication network error: ' + e);
+    }
+  }
+
+  if (connectBtn) {
+    connectBtn.disabled = false;
+    connectBtn.textContent = 'Connected';
+    setTimeout(() => { if (connectBtn) connectBtn.textContent = 'Connect'; }, 2000);
+  }
 }
-if ($('#tok')) {
-  $('#tok').oninput = () => {
-    localStorage.setItem('omniksu_gh_token', $('#tok').value.trim());
+
+// 1-Click Generate Token Button (Direct link with pre-checked permissions)
+if ($('#btn-gen-token')) {
+  $('#btn-gen-token').onclick = async () => {
+    const url = 'https://github.com/settings/tokens/new?description=OmniKSU-Cloud-Runner&scopes=repo,workflow';
+    log('INFO', 'Opening GitHub Personal Access Token generator in browser...');
+    log('INFO', 'Instructions: Scroll to bottom -> Click green "Generate token" -> Copy token & click "Paste & Connect" here!');
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external_url) {
+      await window.pywebview.api.open_external_url(url);
+    } else {
+      window.open(url, '_blank');
+    }
   };
 }
+
+// Paste & Connect Button
+if ($('#btn-paste-token')) {
+  $('#btn-paste-token').onclick = async () => {
+    let clipText = '';
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_clipboard_text) {
+      clipText = await window.pywebview.api.get_clipboard_text();
+    }
+    if (!clipText && navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        clipText = await navigator.clipboard.readText();
+      } catch (e) {}
+    }
+    if (clipText && (clipText.startsWith('ghp_') || clipText.startsWith('github_pat_') || clipText.startsWith('gho_') || clipText.length > 20)) {
+      if ($('#tok')) $('#tok').value = clipText.trim();
+      log('INFO', 'Token pasted from clipboard. Verifying permissions...');
+      await verify_github_token(clipText.trim());
+    } else {
+      log('WARN', 'Clipboard does not contain a valid GitHub token (expected ghp_... or github_pat_...). Please copy token first.');
+    }
+  };
+}
+
+// Connect Button
+if ($('#btn-connect-token')) {
+  $('#btn-connect-token').onclick = () => {
+    verify_github_token($('#tok') ? $('#tok').value.trim() : '');
+  };
+}
+
+// Disconnect Button
+if ($('#btn-disconnect-gh')) {
+  $('#btn-disconnect-gh').onclick = () => {
+    localStorage.removeItem('omniksu_gh_token');
+    if ($('#tok')) $('#tok').value = '';
+    const ghBadge = $('#gh-badge');
+    if (ghBadge) ghBadge.classList.add('hide');
+    const hubCard = $('#gh-hub-card');
+    if (hubCard) hubCard.classList.add('hide');
+    $('#target-repo').value = 'aniketlab/OmniKSU';
+    log('INFO', 'GitHub token disconnected.');
+  };
+}
+
+// 1-Click Auto-Fork Engine Button
+if ($('#btn-do-fork')) {
+  $('#btn-do-fork').onclick = async () => {
+    const token = ($('#tok') ? $('#tok').value.trim() : '') || localStorage.getItem('omniksu_gh_token') || '';
+    if (!token) {
+      log('ERR', 'Please connect your GitHub token before creating a fork.');
+      return;
+    }
+    const forkBtn = $('#btn-do-fork');
+    const label = $('#btn-fork-label');
+    forkBtn.disabled = true;
+    if (label) label.textContent = 'Creating Fork on GitHub…';
+    log('INFO', 'Contacting GitHub API to fork aniketlab/OmniKSU to your account...');
+
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.auto_fork_repo) {
+      try {
+        const res = await window.pywebview.api.auto_fork_repo(token);
+        if (res.ok) {
+          log('OK', res.message);
+          $('#fork-status-missing').classList.add('hide');
+          $('#fork-status-ready').classList.remove('hide');
+          $('#fork-active-repo').textContent = res.fork_repo;
+          $('#target-repo').value = res.fork_repo;
+        } else {
+          log('ERR', res.error || 'Failed to fork repository.');
+        }
+      } catch (e) {
+        log('ERR', 'Fork request error: ' + e);
+      }
+    }
+
+    forkBtn.disabled = false;
+    if (label) label.textContent = '1-Click Auto-Fork OmniKSU';
+  };
+}
+
+// Auto-Detect GitHub CLI on Startup
+async function init_github_hub() {
+  const saved = localStorage.getItem('omniksu_gh_token');
+  if (saved) {
+    if ($('#tok')) $('#tok').value = saved;
+    // Verify in background silently
+    verify_github_token(saved, true);
+  }
+
+  // Check if gh CLI is available on user machine
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.detect_gh_cli) {
+    try {
+      const cli = await window.pywebview.api.detect_gh_cli();
+      if (cli && cli.available && cli.token) {
+        const btnCli = $('#btn-cli-import');
+        const lblCli = $('#btn-cli-label');
+        if (btnCli) {
+          btnCli.classList.remove('hide');
+          if (lblCli) lblCli.textContent = `Import gh CLI (@${cli.user})`;
+          btnCli.onclick = () => {
+            if ($('#tok')) $('#tok').value = cli.token;
+            log('INFO', `Imported token from GitHub CLI (@${cli.user}). Connecting...`);
+            verify_github_token(cli.token);
+          };
+        }
+      }
+    } catch (e) {}
+  }
+}
+setTimeout(init_github_hub, 500);
 
 // Password visibility toggle
 $('#eye').onclick = () => {
@@ -633,6 +835,12 @@ async function on_build_start() {
   if (isCloud && (!kernelRepo || !defconfigName)) {
     log('ERR', 'Please enter Kernel Git Repo URL and Defconfig File Name before starting!');
     setSt('Input Required', 'err');
+    return;
+  }
+
+  if (isCloud && !($('#tok') ? $('#tok').value.trim() : '')) {
+    log('ERR', 'GitHub Personal Access Token is required for Cloud Build. Please connect your token in Step 3!');
+    setSt('Token Required', 'err');
     return;
   }
 

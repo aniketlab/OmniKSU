@@ -1282,6 +1282,275 @@ input[type=range] {
 }
 
 /* ==========================================================================
+   Smart GitHub Cloud Runner & Auto-Fork Hub
+   ========================================================================== */
+.gh-account-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 20px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tx);
+  animation: fadeIn 0.25s ease;
+}
+.gh-account-badge.hide { display: none; }
+.gh-badge-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bd);
+}
+.gh-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4caf50;
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+
+.gh-action-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.btn-gh-primary {
+  background: var(--olive);
+  color: var(--lime);
+  border: 1px solid var(--olive);
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.18s ease;
+}
+.btn-gh-primary:hover {
+  background: var(--olive2);
+  transform: translateY(-1px);
+}
+.btn-gh-primary svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--lime);
+  stroke-width: 2.2;
+  fill: none;
+}
+
+.btn-gh-secondary {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  color: var(--tx);
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+}
+.btn-gh-secondary:hover {
+  border-color: var(--olive);
+  background: var(--bg);
+}
+.btn-gh-secondary svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+}
+.btn-gh-secondary.hide { display: none; }
+
+.btn-connect {
+  background: var(--olive);
+  color: var(--lime);
+  font-weight: 600;
+}
+.btn-connect:hover {
+  background: var(--olive2);
+}
+
+.gh-hub-card {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  animation: fadeIn 0.25s ease;
+}
+.gh-hub-card.hide { display: none; }
+
+.gh-hub-user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gh-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bd);
+  object-fit: cover;
+  background: var(--bg);
+}
+.gh-user-info {
+  flex: 1;
+  min-width: 0;
+}
+.gh-user-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gh-user-title strong {
+  font-size: 13px;
+  color: var(--tx);
+  font-weight: 700;
+}
+.gh-user-title span {
+  font-size: 11.5px;
+  color: var(--mute);
+}
+.gh-scopes-text {
+  font-size: 10px;
+  color: var(--mute);
+  margin-top: 1px;
+}
+.btn-text-action {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: var(--mute);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+.btn-text-action:hover {
+  color: var(--err);
+}
+
+.gh-fork-box {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--bd);
+}
+.fork-state-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fork-state-row.hide { display: none !important; }
+
+.fork-text-col {
+  flex: 1;
+  min-width: 0;
+}
+.fork-title-text {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--tx);
+}
+.fork-meta-text {
+  display: block;
+  font-size: 10.5px;
+  color: var(--mute);
+  margin-top: 1px;
+}
+.fork-meta-text b {
+  color: var(--tx);
+}
+
+.svg-ready {
+  width: 18px;
+  height: 18px;
+  stroke: #2e7d32;
+  stroke-width: 2.2;
+  fill: none;
+  flex-shrink: 0;
+}
+.svg-warn {
+  width: 18px;
+  height: 18px;
+  stroke: #ed6c02;
+  stroke-width: 2.2;
+  fill: none;
+  flex-shrink: 0;
+}
+.svg-owner {
+  width: 18px;
+  height: 18px;
+  stroke: #d97706;
+  stroke-width: 2.2;
+  fill: rgba(217, 119, 6, 0.15);
+  flex-shrink: 0;
+}
+
+.fork-alert-box {
+  background: rgba(237, 108, 2, 0.08);
+  border: 1px solid rgba(237, 108, 2, 0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.fork-alert-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.btn-do-fork {
+  align-self: flex-start;
+  background: #2e7d32;
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(46, 125, 50, 0.3);
+  transition: all 0.18s ease;
+}
+.btn-do-fork:hover {
+  background: #1b5e20;
+  transform: translateY(-1px);
+}
+.btn-do-fork svg {
+  width: 14px;
+  height: 14px;
+  stroke: #ffffff;
+  stroke-width: 2.2;
+  fill: none;
+}
+.btn-do-fork:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ==========================================================================
    Responsive Adaptations for Small Desktop Screens & Window Resizing
    ========================================================================== */
 @media (max-width: 1140px) {

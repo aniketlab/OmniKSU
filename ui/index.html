@@ -208,18 +208,99 @@
 
         <!-- Step 3A: Cloud Runner -->
         <section class="pn" id="cloud">
-          <div class="ph"><i>3</i>Cloud Runner</div>
+          <div class="ph">
+            <span><i>3</i>Cloud Runner</span>
+            <div class="gh-account-badge hide" id="gh-badge">
+              <img id="gh-badge-avatar" class="gh-badge-avatar" src="" alt="avatar">
+              <span class="gh-badge-dot"></span>
+              <span id="gh-badge-user">@username</span>
+            </div>
+          </div>
           <div class="pb">
+            <!-- 1-Click Action Bar -->
+            <div class="gh-action-bar">
+              <button type="button" class="btn btn-gh-primary" id="btn-gen-token" title="1-Click prefilled token generation in browser">
+                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+                <span>1-Click Generate Token</span>
+              </button>
+              <button type="button" class="btn btn-gh-secondary" id="btn-paste-token" title="Paste token from clipboard and connect">
+                <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2M9 2h6a1 1 0 011 1v2a1 1 0 01-1 1H9a1 1 0 01-1-1V3a1 1 0 011-1z"/></svg>
+                <span>Paste & Connect</span>
+              </button>
+              <button type="button" class="btn btn-gh-secondary hide" id="btn-cli-import" title="Directly import GitHub CLI login">
+                <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span id="btn-cli-label">Import gh CLI</span>
+              </button>
+            </div>
+
+            <!-- Token Input Row -->
             <label>GitHub Personal Access Token</label>
             <div class="row">
-              <input type="password" id="tok" placeholder="ghp_••••••••••••••••••••">
-              <button class="btn" id="eye">Show</button>
+              <input type="password" id="tok" placeholder="ghp_•••••••••••••••••••• or github_pat_••••">
+              <button type="button" class="btn" id="eye">Show</button>
+              <button type="button" class="btn btn-connect" id="btn-connect-token">Connect</button>
             </div>
-            <label>Target GitHub Repository</label>
-            <input type="text" id="target-repo" value="aniketlab/OmniKSU">
+
+            <!-- Connected Account & Auto-Fork Hub Card -->
+            <div id="gh-hub-card" class="gh-hub-card hide">
+              <div class="gh-hub-user-row">
+                <img id="gh-user-avatar" class="gh-user-avatar" src="" alt="avatar">
+                <div class="gh-user-info">
+                  <div class="gh-user-title">
+                    <strong id="gh-user-fullname">Full Name</strong>
+                    <span id="gh-user-handle">@username</span>
+                  </div>
+                  <div class="gh-scopes-text" id="gh-scopes-text">Scopes: repo, workflow (Active)</div>
+                </div>
+                <button type="button" class="btn-text-action" id="btn-disconnect-gh" title="Disconnect this token">Disconnect</button>
+              </div>
+
+              <!-- Fork Status Section inside Hub Card -->
+              <div id="gh-fork-status-box" class="gh-fork-box">
+                <!-- State 1: Fork is active -->
+                <div id="fork-status-ready" class="fork-state-row hide">
+                  <svg viewBox="0 0 24 24" class="svg-ready"><path d="M20 6L9 17l-5-5"/></svg>
+                  <div class="fork-text-col">
+                    <span class="fork-title-text">Personal Fork Active</span>
+                    <span class="fork-meta-text"><b id="fork-active-repo">username/OmniKSU</b> · 2,000 free runner mins/mo available</span>
+                  </div>
+                </div>
+
+                <!-- State 2: Fork is missing, needs 1-click fork -->
+                <div id="fork-status-missing" class="fork-state-row fork-alert-box hide">
+                  <div class="fork-alert-header">
+                    <svg viewBox="0 0 24 24" class="svg-warn"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="fork-text-col">
+                      <span class="fork-title-text">Fork Required on your GitHub</span>
+                      <span class="fork-meta-text">GitHub rules ke mutabik Cloud Actions aapke apne account ke fork pe run hote hain.</span>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-do-fork" id="btn-do-fork">
+                    <svg viewBox="0 0 24 24"><path d="M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM18 6a9 9 0 01-9 9"/></svg>
+                    <span id="btn-fork-label">1-Click Auto-Fork OmniKSU</span>
+                  </button>
+                </div>
+
+                <!-- State 3: User is the upstream owner -->
+                <div id="fork-status-owner" class="fork-state-row hide">
+                  <svg viewBox="0 0 24 24" class="svg-owner"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <div class="fork-text-col">
+                    <span class="fork-title-text">Repository Owner</span>
+                    <span class="fork-meta-text">Running directly on upstream <b>aniketlab/OmniKSU</b></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Target Repo Field -->
+            <div class="target-repo-section" style="margin-top: 8px;">
+              <label>Target GitHub Repository (Workflow Runner)</label>
+              <input type="text" id="target-repo" value="aniketlab/OmniKSU">
+            </div>
+
             <div class="note">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-              Build runs on GitHub's free 16GB RAM cloud runner. Zero PC lag or local compile issues.
+              <span>Build runs on GitHub's free 16GB RAM cloud runner. Apne fork pe run karne se aapko har mahine 2,000 runner minutes free milte hain aur repo secrets safe rehte hain.</span>
             </div>
           </div>
         </section>
