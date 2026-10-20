@@ -117,7 +117,8 @@ function populate_dropdowns(info, targetBranch = '', targetDefconfig = '') {
     });
     if (desiredBranch) sel.value = desiredBranch;
     sel.onchange = () => {
-      scan_repo($('#kernel-repo').value.trim(), sel.value);
+      const curDef = $('#kernel-defconfig') ? $('#kernel-defconfig').value : '';
+      scan_repo($('#kernel-repo').value.trim(), sel.value, curDef);
     };
     $('#branch-container').innerHTML = '';
     $('#branch-container').appendChild(sel);
@@ -424,7 +425,9 @@ async function detect_phone() {
 $('#btn-scan-repo').onclick = () => {
   const branchEl = $('#kernel-branch');
   const branch = branchEl ? (branchEl.value || '') : '';
-  scan_repo($('#kernel-repo').value.trim(), branch);
+  const defEl = $('#kernel-defconfig');
+  const curDef = defEl ? (defEl.value || '') : '';
+  scan_repo($('#kernel-repo').value.trim(), branch, curDef);
 };
 
 $('#kernel-repo').onblur = () => {

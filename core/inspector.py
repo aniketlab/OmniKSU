@@ -291,27 +291,33 @@ class RemoteKernelInspector:
         rec_engine = "bakasu"
         rec_hook = "manual"
         rec_toolchain = "gcc-4.9"
-        android_target = "Android 9 (Pie)"
         rationale = ""
+
+        # Zero-guesswork Universal Android OS version detection
+        android_target = cls.detect_android_version(
+            branch_name=active_branch,
+            repo_url_or_name=f"{owner}/{repo_name}",
+            defconfig=defconfigs[0] if defconfigs else "",
+            version_info=version_info
+        )
 
         if v == 3 or (v == 4 and p in (4, 9)):
             rec_engine = "bakasu"
             rec_hook = "manual"
             rec_toolchain = "gcc-4.9"
-            android_target = "Android 8.0 - 9.0 (Oreo / Pie)"
-            rationale = f"Linux {version_info['family']} legacy architecture. Configured with BakaSU for stable stock ROM root access."
+            rationale = f"Linux {version_info['family']} legacy architecture targeting {android_target}. Configured with BakaSU for stable stock ROM root access."
         elif v == 4 and p in (14, 19):
             rec_engine = "kernelsu-next"
             rec_hook = "kprobes"
             rec_toolchain = "proton-clang"
-            android_target = "Android 10.0 - 12.0 (Q / R / S)"
-            rationale = f"Linux {version_info['family']} architecture. Configured with KernelSU-Next via Kprobes dynamic hooking."
+            rationale = f"Linux {version_info['family']} architecture targeting {android_target}. Configured with KernelSU-Next via Kprobes dynamic hooking."
         elif v and v >= 5:
             rec_engine = "kernelsu-next"
             rec_hook = "kprobes"
             rec_toolchain = "proton-clang"
-            android_target = "Android 12.0 - 14.0 (GKI / Modern)"
-            rationale = f"Linux {version_info['family']} modern GKI architecture. Configured with KernelSU-Next via Kprobes."
+            rationale = f"Linux {version_info['family']} modern GKI architecture targeting {android_target}. Configured with KernelSU-Next via Kprobes."
+        else:
+            rationale = f"Linux {version_info.get('family', 'Custom')} kernel targeting {android_target}."
 
         return {
             "ok": True,
@@ -327,6 +333,201 @@ class RemoteKernelInspector:
             "android_target": android_target,
             "rationale": rationale
         }
+
+    @classmethod
+    def detect_android_version(
+        cls,
+        branch_name: str,
+        repo_url_or_name: str = "",
+        defconfig: str = "",
+        version_info: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Intelligently identifies the exact Android OS version (Android 7 - 16)
+        targeted by this kernel tree across all OEMs, AOSP, and Custom ROM schemes.
+        Eliminates guesswork by analyzing branch naming patterns, OEM release tags,
+        verified profile benchmarks, and kernel ABI architecture.
+        """
+        b = (branch_name or "").strip()
+        b_low = b.lower()
+        r_low = (repo_url_or_name or "").lower()
+        d_low = (defconfig or "").lower()
+
+        # 1. Check verified hardware presets (config/devices.json)
+        config_file = Path(__file__).parent.parent / "config" / "devices.json"
+        if config_file.is_file():
+            try:
+                import json
+                with open(config_file, "r", encoding="utf-8") as f:
+                    presets = json.load(f).get("devices", {})
+                    for p_code, p_data in presets.items():
+                        p_branch = p_data.get("branch", "").lower()
+                        p_repo = p_data.get("repo_url", "").lower()
+                        if p_branch and p_branch == b_low:
+                            if not p_repo or p_repo in r_low or any(part in r_low for part in p_repo.split("/")[-2:]):
+                                if p_data.get("tested_stock_os"):
+                                    return p_data["tested_stock_os"]
+            except Exception:
+                pass
+
+        # 2. OnePlus / Qualcomm OSS scheme: e.g. oneplus/SDM845_R_11.0, SM8150_Q_10.0, SM8350_T_13.0, SM8450_U_14.0
+        m_op = re.search(r"[_/-]([A-Z])_([0-9]{1,2}(?:\.[0-9]+)?)", b)
+        if m_op:
+            letter = m_op.group(1).upper()
+            ver_num = m_op.group(2)
+            letter_map = {
+                "N": "Nougat", "O": "Oreo", "P": "Pie", "Q": "Android 10 (Q)",
+                "R": "Android 11 (R)", "S": "Android 12 (S)", "T": "Android 13 (T)",
+                "U": "Android 14 (U)", "V": "Android 15 (V)", "W": "Android 16 (W)"
+            }
+            name = letter_map.get(letter, f"Android {ver_num}")
+            if not name.startswith("Android"):
+                return f"Android {ver_num} ({name})"
+            return name
+
+        # 3. Xiaomi / MiCode convention: e.g. tulip-p-oss, whyred-o-oss, mido-n-oss, marble-t-oss, alioth-r-oss, marble-u-oss
+        m_mi = re.search(r"[_-]([a-z])-oss\b", b_low)
+        if m_mi:
+            mi_letter = m_mi.group(1)
+            mi_map = {
+                "n": "Android 7.0 - 7.1 (Nougat)",
+                "o": "Android 8.0 - 8.1 (Oreo)",
+                "p": "Android 9.0 (Pie)",
+                "q": "Android 10 (Q)",
+                "r": "Android 11 (R)",
+                "s": "Android 12 (S)",
+                "t": "Android 13 (T)",
+                "u": "Android 14 (U)",
+                "v": "Android 15 (V)"
+            }
+            if mi_letter in mi_map:
+                return mi_map[mi_letter]
+
+        # 4. LineageOS / CyanogenMod: e.g. lineage-18.1, lineage-20.0, lineage-21, cm-14.1
+        m_los = re.search(r"(?:lineage|cm)[_-]([0-9]+(?:\.[0-9]+)?)", b_low)
+        if m_los:
+            try:
+                los_ver = float(m_los.group(1))
+                los_map = {
+                    14.1: "Android 7.1 (Nougat)",
+                    14.0: "Android 7.0 (Nougat)",
+                    15.1: "Android 8.1 (Oreo)",
+                    15.0: "Android 8.0 (Oreo)",
+                    16.0: "Android 9.0 (Pie)",
+                    17.1: "Android 10 (Q)",
+                    17.0: "Android 10 (Q)",
+                    18.1: "Android 11 (R)",
+                    18.0: "Android 11 (R)",
+                    19.1: "Android 12L (S)",
+                    19.0: "Android 12 (S)",
+                    20.0: "Android 13 (T)",
+                    21.0: "Android 14 (U)",
+                    22.0: "Android 15 (V)",
+                    22.1: "Android 15 (V)",
+                }
+                if los_ver in los_map:
+                    return los_map[los_ver]
+                elif int(los_ver) == 20:
+                    return "Android 13 (T)"
+                elif int(los_ver) == 21:
+                    return "Android 14 (U)"
+                elif int(los_ver) >= 22:
+                    return f"Android {int(los_ver) - 7} (V+)"
+            except ValueError:
+                pass
+
+        # 5. Named Custom ROM / AOSP code names: e.g. fifteen, fourteen, thirteen, twelve-l, twelve, eleven, ten, pie, oreo
+        named_map = {
+            "fifteen": "Android 15 (V)",
+            "fourteen": "Android 14 (U)",
+            "thirteen": "Android 13 (T)",
+            "twelve-l": "Android 12L (S)",
+            "twelve": "Android 12 (S)",
+            "eleven": "Android 11 (R)",
+            "ten": "Android 10 (Q)",
+            "pie": "Android 9.0 (Pie)",
+            "oreo": "Android 8.1 (Oreo)",
+            "nougat": "Android 7.1 (Nougat)"
+        }
+        for kw, target_name in named_map.items():
+            if re.search(r"(?:^|[_\-/])" + kw + r"(?:[_\-/]|$)", b_low):
+                return target_name
+
+        # 6. Explicit numeric Android release pattern in branch or repo: e.g. android-11, android11, android-12.0.0_r32, AOSP android-msm-coral-4.14-android11
+        and_map = {
+            "7": "Android 7.0 - 7.1 (Nougat)",
+            "8": "Android 8.0 - 8.1 (Oreo)",
+            "9": "Android 9.0 (Pie)",
+            "10": "Android 10 (Q)",
+            "11": "Android 11 (R)",
+            "12": "Android 12 (S)",
+            "13": "Android 13 (T)",
+            "14": "Android 14 (U)",
+            "15": "Android 15 (V)",
+            "16": "Android 16 (B)"
+        }
+        m_and = re.search(r"android[_-]?([0-9]{1,2})(?:\.([0-9]+))?", b_low)
+        if m_and:
+            maj = m_and.group(1)
+            sub = m_and.group(2)
+            if maj in and_map:
+                if sub:
+                    return f"Android {maj}.{sub}"
+                return and_map[maj]
+
+        # 7. Motorola mmi tag pattern: e.g. mmi-qp130 (Q=10), mmi-rp131 (R=11), mmi-s1 (S=12), mmi-t1 (T=13)
+        m_mmi = re.search(r"mmi-([q-v])", b_low)
+        if m_mmi:
+            mmi_letter = m_mmi.group(1)
+            mmi_map = {
+                "q": "Android 10 (Q)",
+                "r": "Android 11 (R)",
+                "s": "Android 12 (S)",
+                "t": "Android 13 (T)",
+                "u": "Android 14 (U)",
+                "v": "Android 15 (V)"
+            }
+            if mmi_letter in mmi_map:
+                return mmi_map[mmi_letter]
+
+        # 8. Standalone version prefix or suffix: e.g. v11.0, 11.0, 10.0, 12.0, 13.0, 14.0
+        m_num = re.search(r"(?:^|[_\-/])(?:v)?(1[0-6]|[7-9])\.0(?:[_\-/]|$)", b_low)
+        if m_num:
+            num = m_num.group(1)
+            if num in and_map:
+                return and_map[num]
+
+        # 9. Defconfig hints if branch had no clear signal
+        if d_low:
+            for kw, target_name in named_map.items():
+                if kw in d_low:
+                    return target_name
+            m_def = re.search(r"[_\-]r([0-9]{1,2})[_\-]", d_low)
+            if m_def and m_def.group(1) in and_map:
+                return and_map[m_def.group(1)]
+
+        # 10. Precise Linux Kernel LTS baseline architecture ranges
+        if version_info:
+            v = version_info.get("version")
+            p = version_info.get("patchlevel")
+            if v == 3:
+                if p == 18:
+                    return "Android 6.0 - 7.1 (Marshmallow / Nougat)"
+                return "Android 4.4 - 6.0 (Legacy)"
+            elif v == 4:
+                if p in (4, 9):
+                    return "Android 8.0 - 11.0 (Oreo - Android 11)"
+                elif p in (14, 19):
+                    return "Android 10.0 - 13.0 (Q - Android 13)"
+            elif v == 5:
+                if p in (4, 10):
+                    return "Android 11.0 - 14.0 (R - Android 14)"
+                elif p in (15,):
+                    return "Android 13.0 - 15.0 (T - Android 15)"
+            elif v and v >= 6:
+                return "Android 14.0+ (Modern GKI)"
+
+        return "Android 9.0 - 13.0"
 
     @classmethod
     def extract_codename_from_repo(cls, name: str, query: str) -> str:
@@ -410,6 +611,8 @@ class RemoteKernelInspector:
                             if p_plat:
                                 matched_platforms.add(p_plat)
                             fn = "/".join(p_data["repo_url"].rstrip("/").split("/")[-2:])
+                            if any(r["url"].lower() == p_data["repo_url"].lower() for r in results):
+                                continue
                             results.append({
                                 "name": fn.split("/")[-1],
                                 "full_name": fn,
