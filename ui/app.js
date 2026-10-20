@@ -528,9 +528,50 @@ function pipe(activeStage, allDone = false) {
   $$('#pipe .stg').forEach((s, i) => {
     s.className = 'stg' + (allDone || i < activeStage ? ' done' : i === activeStage ? ' act' : '');
   });
-  $$('#pipe .stg u').forEach((u, i) => {
+  $$('#pipe .stg .stg-num, #pipe .stg u').forEach((u, i) => {
     u.textContent = (allDone || i < activeStage) ? '✓' : (i + 1);
   });
+}
+
+let currentArtifact = null;
+
+function show_artifact_card(data) {
+  if (!data) return;
+  currentArtifact = data;
+  const card = $('#artifact-delivery-card');
+  if (!card) return;
+
+  $('#ac-filename').textContent = data.filename || 'OmniKSU-Kernel-Flashable.zip';
+  const sizeStr = data.file_size ? `${data.file_size} · ` : '';
+  const shaStr = data.sha256 ? `SHA-256: ${data.sha256.slice(0, 16)}…` : 'Verified';
+  $('#ac-meta').textContent = `${sizeStr}${shaStr}`;
+
+  const grid = $('#ac-checks-grid');
+  grid.innerHTML = '';
+
+  const checks = data.checks || [];
+  checks.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'ac-check-item';
+    const isPass = c.pass !== false;
+    const iconSvg = isPass
+      ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>'
+      : '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+
+    item.innerHTML = `
+      <div class="ac-check-icon ${isPass ? 'pass' : 'fail'}">${iconSvg}</div>
+      <div class="ac-check-text">
+        <span class="ac-check-name">${c.name}:</span>
+        <span class="ac-check-desc">${c.desc || ''}</span>
+      </div>
+    `;
+    grid.appendChild(item);
+  });
+
+  card.classList.remove('hide');
+  try {
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {}
 }
 
 function fmt() {
@@ -663,3 +704,55 @@ log('INFO', 'OmniKSU Build Studio v1.0.0 initialized');
 log('INFO', 'Cloud runner: Ubuntu 22.04 (16GB RAM) ready');
 log('INFO', 'Waiting for build configuration...');
 sync();
+
+
+// Artifact Delivery Card Actions
+$('#ac-btn-save').onclick = async () => {
+  if (!currentArtifact || !currentArtifact.filepath) {
+    log('WARN', 'No local artifact file available to save.');
+    return;
+  }
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.save_artifact_as) {
+    const res = await window.pywebview.api.save_artifact_as(currentArtifact.filepath);
+    if (res && res.ok) {
+      log('OK', `File saved to: ${res.saved_path}`);
+    }
+  }
+};
+
+$('#ac-btn-open').onclick = () => {
+  const target = (currentArtifact && currentArtifact.filepath) ? currentArtifact.filepath : ($('#out')?.value || 'C:\\OmniKSU\\output');
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_folder) {
+    window.pywebview.api.open_folder(target);
+  }
+};
+
+$('#ac-btn-push').onclick = async () => {
+  if (!currentArtifact || !currentArtifact.filepath) {
+    log('WARN', 'No local artifact file available to push.');
+    return;
+  }
+  log('INFO', 'Pushing flashable zip to connected Android device...');
+  setSt('Sending to Phone…', 'run');
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.push_to_phone) {
+    const res = await window.pywebview.api.push_to_phone(currentArtifact.filepath);
+    if (res && res.ok) {
+      log('OK', res.message || 'Copied successfully to Phone storage!');
+      setSt('Sent to Phone', '');
+    } else {
+      log('ERR', res.error || 'Failed to send file over ADB.');
+      setSt('Failed', 'err');
+    }
+  }
+};
+
+$('#btn-verify-ext').onclick = async () => {
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.verify_custom_zip_file) {
+    log('INFO', 'Selecting external kernel ZIP to verify...');
+    const res = await window.pywebview.api.verify_custom_zip_file();
+    if (res && res.ok && res.result) {
+      log('OK', `Verified: ${res.result.filename} (${res.result.file_size})`);
+      setSt('Verified', '');
+    }
+  }
+};

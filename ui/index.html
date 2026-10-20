@@ -251,11 +251,11 @@
         <section class="pn">
           <div class="ph">Build Pipeline</div>
           <div class="pipe" id="pipe">
-            <div class="stg"><u>1</u>Detect</div>
-            <div class="stg"><u>2</u>Clone</div>
-            <div class="stg"><u>3</u>Patch</div>
-            <div class="stg"><u>4</u>Compile</div>
-            <div class="stg"><u>5</u>Package</div>
+            <div class="stg"><u class="stg-num">1</u><span class="stg-label">Detect</span></div>
+            <div class="stg"><u class="stg-num">2</u><span class="stg-label">Clone</span></div>
+            <div class="stg"><u class="stg-num">3</u><span class="stg-label">Patch</span></div>
+            <div class="stg"><u class="stg-num">4</u><span class="stg-label">Compile</span></div>
+            <div class="stg"><u class="stg-num">5</u><span class="stg-label">Package</span></div>
           </div>
         </section>
 
@@ -264,11 +264,48 @@
           <div class="ch">
             <span>Console Output</span>
             <span class="row">
+              <button class="btn" id="btn-verify-ext" title="Verify any existing flashable kernel zip archive">Verify ZIP…</button>
               <button class="btn" id="clr">Clear Logs</button>
               <button class="btn" id="cpy">Copy Logs</button>
             </span>
           </div>
           <div id="log"></div>
+        </section>
+
+        <!-- Flashable Kernel Artifact Ready Card -->
+        <section id="artifact-delivery-card" class="artifact-card hide">
+          <div class="ac-header">
+            <div class="ac-title-wrap">
+              <span class="ac-badge">⭐ Ready to Flash</span>
+              <h3 id="ac-filename">OmniKSU-Kernel-Flashable.zip</h3>
+              <div class="ac-meta" id="ac-meta">17.54 MB · SHA-256: Verified</div>
+            </div>
+            <div class="ac-actions">
+              <button class="btn ac-btn primary" id="ac-btn-save" title="Save flashable zip to custom folder">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                Save As…
+              </button>
+              <button class="btn ac-btn" id="ac-btn-open" title="Open directory in Windows Explorer">
+                <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                Open Folder
+              </button>
+              <button class="btn ac-btn" id="ac-btn-push" title="Copy directly to connected phone /sdcard/Download/">
+                <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+                Send to Phone
+              </button>
+            </div>
+          </div>
+
+          <!-- Smart Verification Inspection Box -->
+          <div class="ac-verify-box">
+            <div class="ac-verify-title">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+              <span>Smart Zip Verification: All 5 Pre-Flash Checks Passed</span>
+            </div>
+            <div class="ac-checks-grid" id="ac-checks-grid">
+              <!-- Dynamically populated checks -->
+            </div>
+          </div>
         </section>
 
         <!-- Build Action Bar -->

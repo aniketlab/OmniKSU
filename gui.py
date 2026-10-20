@@ -24,6 +24,7 @@ from core.integrator import RootIntegrator
 from core.toolchain import ToolchainManager
 from core.packager import AnyKernelPackager
 from core.inspector import RemoteKernelInspector
+from core.verifier import SmartZipVerifier
 
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     BASE_DIR = Path(sys._MEIPASS)
@@ -224,6 +225,9 @@ class OmniKSUApi:
                         self.set_status("Success", "")
                         self.log("PACK", "AnyKernel3 flashable zip generated on GitHub!")
                         self.log("OK", f"Build Successful! View artifacts at: https://github.com/{repo}/actions/runs/{run_id}")
+                        self.log("INFO", "Initiating automatic artifact download & smart verification...")
+                        out_dir_str = payload.get("out_dir") or "C:\\OmniKSU\\output"
+                        self._download_and_verify_artifact(repo=repo, run_id=run_id, token=token, out_dir=out_dir_str)
                     else:
                         self.set_status("Failed", "err")
                         self.log("ERR", f"Cloud build finished with status: {conclusion}")
@@ -269,6 +273,158 @@ class OmniKSUApi:
         self.set_progress(100, 4)
         self.set_status("Success", "")
         self.log("OK", f"AnyKernel3 Flashable ZIP ready in {out_dir}")
+
+    def _download_and_verify_artifact(self, repo: str, run_id: int, token: str, out_dir: str):
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        artifacts_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
+
+        try:
+            target_artifact = None
+            for _ in range(5):
+                time.sleep(2)
+                r = requests.get(artifacts_url, headers=headers, timeout=12)
+                if r.status_code == 200:
+                    artifacts = r.json().get("artifacts", [])
+                    if artifacts:
+                        flashable = [a for a in artifacts if "flashable" in a.get("name", "").lower()]
+                        target_artifact = flashable[0] if flashable else artifacts[0]
+                        break
+
+            if not target_artifact:
+                self.log("WARN", "Artifact not yet indexed by GitHub. You can view it on GitHub Actions.")
+                return
+
+            art_name = target_artifact.get("name", "Flashable-Kernel")
+            download_url = target_artifact.get("archive_download_url")
+            art_size_mb = target_artifact.get("size_in_bytes", 0) / (1024 * 1024)
+
+            self.log("INFO", f"Downloading {art_name} ({art_size_mb:.1f} MB) from GitHub Cloud...")
+
+            out_path = Path(out_dir)
+            out_path.mkdir(parents=True, exist_ok=True)
+
+            dl_res = requests.get(download_url, headers=headers, stream=True, timeout=120)
+            if dl_res.status_code != 200:
+                self.log("ERR", f"Failed to download artifact ({dl_res.status_code}).")
+                return
+
+            import zipfile
+            import io
+            outer_bio = io.BytesIO(dl_res.content)
+            outer_zf = zipfile.ZipFile(outer_bio, "r")
+            inner_names = outer_zf.namelist()
+
+            if inner_names:
+                inner_file = inner_names[0]
+                final_zip_path = out_path / inner_file
+                with open(final_zip_path, "wb") as f:
+                    f.write(outer_zf.read(inner_file))
+            else:
+                final_zip_path = out_path / f"{art_name}.zip"
+                with open(final_zip_path, "wb") as f:
+                    f.write(dl_res.content)
+
+            self.log("OK", f"Flashable ZIP saved to: {final_zip_path}")
+            self.log("VERIFY", "Running OmniKSU Smart Zip Verification Engine...")
+
+            res = SmartZipVerifier.verify_flashable_zip(final_zip_path)
+
+            if res.get("valid"):
+                self.log("OK", f"Integrity Pass: {res['filename']} ({res['file_size']})")
+                self.log("OK", f"Kernel Image: {res.get('kernel_image')} ({res.get('kernel_size_mb', 0):.1f} MB)")
+                self.log("OK", f"SHA-256: {res['sha256'][:16]}...")
+                self.log("OK", "Kernel is 100% Verified & Ready to Flash!")
+            else:
+                self.log("WARN", f"Verification notice: {res.get('error', 'Check details in delivery card')}")
+
+            if self._window:
+                safe_json = json.dumps(res)
+                self._window.evaluate_js(f"show_artifact_card({safe_json});")
+
+        except Exception as e:
+            self.log("ERR", f"Artifact download error: {str(e)}")
+
+    def save_artifact_as(self, source_path: str) -> dict:
+        """Opens native file dialog so user can save the zip to their desired location."""
+        p = Path(source_path)
+        if not p.is_file():
+            return {"ok": False, "error": "Source file not found."}
+        try:
+            import webview
+            dialog_type = getattr(webview.FileDialog, "SAVE", webview.SAVE_DIALOG) if hasattr(webview, "FileDialog") else webview.SAVE_DIALOG
+            res = self._window.create_file_dialog(
+                dialog_type,
+                save_filename=p.name,
+                file_types=('ZIP Archives (*.zip)', 'All Files (*.*)')
+            )
+            if res:
+                target = res if isinstance(res, str) else res[0]
+                shutil.copy2(str(p), target)
+                self.log("OK", f"Saved copy to: {target}")
+                return {"ok": True, "saved_path": target}
+            return {"ok": False, "error": "Save cancelled"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def open_folder(self, target_path: str):
+        """Reveals file or directory in Windows File Explorer."""
+        try:
+            p = Path(target_path)
+            if p.is_file():
+                subprocess.run(["explorer.exe", f"/select,{str(p.resolve())}"])
+            elif p.is_dir():
+                subprocess.run(["explorer.exe", str(p.resolve())])
+            else:
+                parent = p.parent
+                if parent.is_dir():
+                    subprocess.run(["explorer.exe", str(parent.resolve())])
+        except Exception as e:
+            self.log("WARN", f"Could not open explorer: {e}")
+
+    def push_to_phone(self, file_path: str) -> dict:
+        """Pushes flashable zip directly to connected phone over ADB (/sdcard/Download/)."""
+        try:
+            p = Path(file_path)
+            if not p.is_file():
+                return {"ok": False, "error": "Kernel ZIP file not found."}
+            adb = RemoteKernelInspector.get_adb_binary()
+            if not adb:
+                return {"ok": False, "error": "ADB executable not found."}
+
+            dest = f"/sdcard/Download/{p.name}"
+            self.log("INFO", f"Transferring {p.name} to Phone storage ({dest})...")
+            res = subprocess.run([str(adb), "push", str(p), dest], capture_output=True, text=True, timeout=90)
+            if res.returncode == 0:
+                self.log("OK", f"Successfully copied to Phone: {dest}")
+                return {"ok": True, "message": f"Saved to Phone: {dest}"}
+            else:
+                err = res.stderr.strip() or "ADB push failed."
+                self.log("ERR", err)
+                return {"ok": False, "error": err}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def verify_custom_zip_file(self) -> dict:
+        """Opens a file dialog for the user to pick ANY zip and verifies it."""
+        try:
+            import webview
+            dialog_type = getattr(webview.FileDialog, "OPEN", webview.OPEN_DIALOG) if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
+            res = self._window.create_file_dialog(
+                dialog_type,
+                file_types=('ZIP Archives (*.zip)', 'All Files (*.*)')
+            )
+            if res:
+                chosen = res if isinstance(res, str) else res[0]
+                result = SmartZipVerifier.verify_flashable_zip(chosen)
+                if self._window:
+                    self._window.evaluate_js(f"show_artifact_card({json.dumps(result)});")
+                return {"ok": True, "result": result}
+            return {"ok": False, "error": "Selection cancelled"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     def cancel_build(self):
         self.active_build = False
