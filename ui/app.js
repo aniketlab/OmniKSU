@@ -453,6 +453,17 @@ $$('.nav').forEach(n => {
   };
 });
 
+// Password visibility toggle & token persistence
+const savedTok = localStorage.getItem('omniksu_gh_token');
+if (savedTok && $('#tok') && !$('#tok').value) {
+  $('#tok').value = savedTok;
+}
+if ($('#tok')) {
+  $('#tok').oninput = () => {
+    localStorage.setItem('omniksu_gh_token', $('#tok').value.trim());
+  };
+}
+
 // Password visibility toggle
 $('#eye').onclick = () => {
   const t = $('#tok');
